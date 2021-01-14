@@ -1,0 +1,19 @@
+# potential arrays
+*.pa#
+*.pa[0-9]*
+*.pa-surf
+
+# ion workbench
+*.iob
+
+# geometry
+*.processed.gem
+
+# screenshots
+*.png
+*.jpg
+*.bmp
+
+# temporary files
+*.swp
+*.tmp
