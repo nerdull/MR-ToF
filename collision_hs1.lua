@@ -216,7 +216,7 @@ local function record_ke_other_actions()
     last_collision_times[ion_number] = ion_time_of_flight
 end
 local function record_ke_terminate()
-    if _trace_level >= 1 then
+    if _trace_level >= 1 and ke_averages[ion_number] then
         -- ion temperature
         local T_ion = ke_averages[ion_number] / eV_J / (1.5 * k)
         print(string.format(
