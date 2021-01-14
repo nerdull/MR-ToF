@@ -13,8 +13,8 @@ d = 3.4 -- mm
 s = d * .6 -- mm
 grid_unit = 1e-3-- mm
 
-local freq = 2.22 -- MHz
-local V_0 = 96 -- V
+local freq = 2.13 -- MHz
+local V_0 = 72 -- V
 
 if pcall(debug.getlocal, 4, 1) then -- acting as an imported module
     local M = {}
