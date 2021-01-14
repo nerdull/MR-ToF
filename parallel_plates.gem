@@ -1,0 +1,36 @@
+; File: parallel_plates.gem
+; Author: X. Chen
+; Description: geometric definition of two parallel planar electrodes
+; License: GNU GPLv3
+
+# local l_x = _G.l_x
+# local l_y = _G.l_y
+# local l_z = _G.l_z
+# local thickness = _G.thickness
+# local grid_unit = _G.grid_unit
+
+# local n_x = math.ceil(l_x/grid_unit) + 1
+# local n_y = math.ceil(2*l_y/grid_unit) + 1
+# local n_z = math.ceil(l_z/grid_unit) + 1
+
+pa_define($(n_x), $(n_y), $(n_z), planar, xz, electrostatic,, $(grid_unit), surface=fractional)
+
+electrode(1) {
+    locate(0, $(2*l_y)) {
+        fill {
+            within {
+                box(-$(l_x), 0, $(l_x), -$(thickness))
+            }
+        }
+    }
+}
+
+electrode(2) {
+    locate(0, 0) {
+        fill {
+            within {
+                box(-$(l_x), 0, $(l_x), $(thickness))
+            }
+        }
+    }
+}
