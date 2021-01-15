@@ -19,6 +19,10 @@ adjustable _trace_level = 2 -- keep an eye on ion's kinetic energy
 
 local WAVE = simion.import "waveformlib.lua"
 
+local last_pos_print = 0 -- micro-s
+local pos_print_period = 10 -- print ion's x-pos every this number of micro-s, or when it is teleported
+local teleport_dist = 0 -- accumulated distance over which ion has been teleported so far, mm
+
 function segment.initialize_run()
     WAVE.install {
         waves = WAVE.waveforms {
@@ -76,11 +80,28 @@ function segment.other_actions()
     if WAVE.segment.other_actions then
         WAVE.segment.other_actions()
     end
+    -- [[ regularly print x-position
+    function pos_print()
+        print("position = " .. ion_px_mm-teleport_dist .. " mm")
+        last_pos_print = ion_time_of_flight
+    end
+    if ion_time_of_flight - last_pos_print > pos_print_period then
+        pos_print()
+    end
+    --]]
     -- [[ periodic boundary condition
     local left_boundary = -d * (n_ring-2) -- mm
     local right_boundary = d * (n_ring-2) -- mm
     local teleportation = right_boundary - left_boundary -- mm
-    ion_px_mm = ion_px_mm + (ion_px_mm<left_boundary and teleportation or ion_px_mm>right_boundary and -teleportation or 0)
+    if ion_px_mm < left_boundary then
+        ion_px_mm = ion_px_mm + teleportation
+        teleport_dist = teleport_dist + teleportation
+        pos_print()
+    elseif ion_px_mm > right_boundary then
+        ion_px_mm = ion_px_mm - teleportation
+        teleport_dist = teleport_dist - teleportation
+        pos_print()
+    end
     --]]
 end
 
