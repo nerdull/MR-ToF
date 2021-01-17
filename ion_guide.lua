@@ -19,8 +19,11 @@ adjustable _trace_level = 2 -- keep an eye on ion's kinetic energy
 
 local WAVE = simion.import "waveformlib.lua"
 
-local last_pos_print = 0 -- micro-s
-local teleport_dist = 0 -- accumulated distance over which ion has been teleported so far, mm
+local left_boundary = -d * (n_ring-2) -- mm
+local right_boundary = d * (n_ring-2) -- mm
+local teleportation = right_boundary - left_boundary -- mm
+local last_pos_print = {} -- micro-s
+local teleport_dist = {} -- accumulated distance over which ion has been teleported so far, mm
 -- print ion's x-pos every this number of micro-s, or when it is teleported
 -- set 0 to print every ion_time_step
 -- set an negative value to disable print
@@ -76,6 +79,12 @@ function segment.fast_adjust()
     end
 end
 
+function pos_print()
+    if _pos_print_period < 0 then return end
+    print("ion = " .. ion_number .. ", position = " .. ion_px_mm-teleport_dist[ion_number] .. " mm")
+    last_pos_print[ion_number] = ion_time_of_flight
+end
+
 function segment.other_actions()
     if HS1.segment.other_actions then
         HS1.segment.other_actions()
@@ -84,24 +93,18 @@ function segment.other_actions()
         WAVE.segment.other_actions()
     end
     -- [[ regularly print x-position
-    function pos_print()
-        if _pos_print_period < 0 then return end
-        print("position = " .. ion_px_mm-teleport_dist .. " mm")
-        last_pos_print = ion_time_of_flight
+    if ion_time_of_flight - (last_pos_print[ion_number] or 0) > _pos_print_period then
+        pos_print()
     end
-    if ion_time_of_flight - last_pos_print > _pos_print_period then pos_print() end
     --]]
     -- [[ periodic boundary condition
-    local left_boundary = -d * (n_ring-2) -- mm
-    local right_boundary = d * (n_ring-2) -- mm
-    local teleportation = right_boundary - left_boundary -- mm
     if ion_px_mm < left_boundary then
         ion_px_mm = ion_px_mm + teleportation
-        teleport_dist = teleport_dist + teleportation
+        teleport_dist[ion_number] = (teleport_dist[ion_number] or 0) + teleportation
         pos_print()
     elseif ion_px_mm > right_boundary then
         ion_px_mm = ion_px_mm - teleportation
-        teleport_dist = teleport_dist - teleportation
+        teleport_dist[ion_number] = (teleport_dist[ion_number] or 0) - teleportation
         pos_print()
     end
     --]]
