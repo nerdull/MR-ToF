@@ -7,14 +7,14 @@ License: GNU GPLv3
 
 -- [[ define parameters
 n_ring = 6
-r_0 = 3 -- mm
+r_0 = 2 -- mm
 r_m = r_0 * 2 -- mm
-d = 3.4 -- mm
-s = d * .6 -- mm
+d = 2 -- mm
+s = 1.1 -- mm
 grid_unit = 1e-3-- mm
 
-local freq = 2.13 -- MHz
-local V_0 = 72 -- V
+local freq = 5.43 -- MHz
+local V_0 = 108 -- V
 
 if pcall(debug.getlocal, 4, 1) then -- acting as an imported module
     local M = {}
