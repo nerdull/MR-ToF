@@ -28,6 +28,7 @@ local teleport_dist = {} -- accumulated distance over which ion has been telepor
 -- set 0 to print every ion_time_step
 -- set an negative value to disable print
 adjustable _pos_print_period = 100
+local range = {} -- maximal distance each ion can fly, mm
 
 function segment.initialize_run()
     WAVE.install {
@@ -81,7 +82,11 @@ end
 
 function pos_print()
     if _pos_print_period < 0 then return end
-    print("ion = " .. ion_number .. ", position = " .. ion_px_mm-teleport_dist[ion_number] .. " mm")
+    local pos = ion_px_mm - teleport_dist[ion_number]
+    if pos > (range[ion_number] or 0) then
+        range[ion_number] = pos
+    end
+    print("ion = " .. ion_number .. ", position = " .. pos .. " mm, range = " .. range[ion_number] .. " mm")
     last_pos_print[ion_number] = ion_time_of_flight
 end
 
