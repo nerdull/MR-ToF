@@ -6,24 +6,15 @@ License: GNU GPLv3
 --]]
 
 local n_ring = _G.n_ring
-local charged = _G.charged
 
-local map1 = {}
-local map2 = {}
+local map = {}
 
 for i=1,n_ring do
-    if i == charged then
-        map1[i] = 1
-        map2[i] = 0
-    else
-        map1[i] = 0
-        map2[i] = 1
-    end
+    map[i] = (i%2==0) and -1 or 1
 end
 
 potential_array {
     scalable_electrodes = {
-        [1] = map1;
-        [2] = map2;
+        [1] = map;
     }
 }
