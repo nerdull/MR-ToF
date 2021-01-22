@@ -10,7 +10,7 @@
 # local r_m = _G.r_m
 # local grid_unit = _G.grid_unit
 
-# local length = d*(n_ring-1) + s
+# local length = d*n_ring
 # local n_x = math.ceil(length/grid_unit) + 1
 # local n_y = math.ceil(r_m/grid_unit) + 1
 

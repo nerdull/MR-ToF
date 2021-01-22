@@ -6,21 +6,25 @@ License: GNU GPLv3
 --]]
 
 -- [[ define parameters
-local length = 260 -- mm
+m_ring = 9 * 4 -- rings in transport section
+n_ring = m_ring + 4 -- plus 4 rings in storage section
 r_0 = 2 -- mm
 r_m = r_0 * 2 -- mm
-d = 2 -- mm
-s = 1.1 -- mm
-n_ring = math.ceil(length/d) + 1
-grid_unit = 5e-3-- mm
+d = 2.3 -- mm
+s = 1.4 -- mm
+grid_unit = 2e-3-- mm
 
-local freq = 5.43 -- MHz
-local V_0 = 108 -- V
+local freq_f = 4.72 -- MHz
+local freq_ratio = 2000 -- integer, freq_s = (2*freq_f) / (4*freq_ratio)
+local V_0 = 104 -- V
+local V_l = 2.9 -- V
 
 if pcall(debug.getlocal, 4, 1) then -- acting as an imported module
     local M = {}
-    M.freq = freq
+    M.freq_f = freq_f
+    M.freq_ratio = freq_ratio
     M.V_0 = V_0
+    M.V_l = V_l
     return M
 end
 --]]

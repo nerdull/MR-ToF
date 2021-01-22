@@ -5,16 +5,27 @@ Description: proportional coefficients of electrode combinations for fast scalin
 License: GNU GPLv3
 --]]
 
-local n_ring = _G.n_ring
+local m_ring = _G.m_ring
 
-local map = {}
+local electrodes = {}
 
-for i=1,n_ring do
-    map[i] = (i%2==0) and -1 or 1
+for elect=1,4 do
+    local map = {}
+    for i=elect,m_ring,4 do
+        map[i] = 1
+    end
+    electrodes[elect] = map
 end
 
+electrodes[5] = {
+    [m_ring+1] = 1;
+    [m_ring+2] = -1;
+    [m_ring+3] = 1;
+}
+electrodes[6] = {
+    [m_ring+4] = 1;
+}
+
 potential_array {
-    scalable_electrodes = {
-        [1] = map;
-    }
+    scalable_electrodes = electrodes;
 }
