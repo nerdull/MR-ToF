@@ -12,10 +12,10 @@ r_0 = 2 -- mm
 r_m = r_0 * 2 -- mm
 d = 2.3 -- mm
 s = 1.4 -- mm
-grid_unit = 2e-3-- mm
+grid_unit = 5e-3-- mm
 
 local freq_f = 4.72 -- MHz
-local freq_ratio = 2000 -- integer, freq_s = (2*freq_f) / (4*freq_ratio)
+local freq_ratio = 2500 -- integer, freq_s = (2*freq_f) / (4*freq_ratio)
 local V_0 = 104 -- V
 local V_l = 2.9 -- V
 
@@ -25,6 +25,7 @@ if pcall(debug.getlocal, 4, 1) then -- acting as an imported module
     M.freq_ratio = freq_ratio
     M.V_0 = V_0
     M.V_l = V_l
+    M.eject_point = d*(m_ring+1) + s/2
     return M
 end
 --]]
