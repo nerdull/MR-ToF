@@ -14,9 +14,9 @@ d = 2.3 -- mm
 s = 1.4 -- mm
 grid_unit = 5e-3-- mm
 
-local freq_f = 4.72 -- MHz
-local freq_ratio = 2500 -- integer, freq_s = (2*freq_f) / (4*freq_ratio)
-local V_0 = 104 -- V
+local freq_f = 3.15 -- MHz
+local freq_ratio = 1575 -- integer, freq_s = (2*freq_f) / (4*freq_ratio)
+local V_0 = 70 -- V
 local V_l = 2.9 -- V
 
 if pcall(debug.getlocal, 4, 1) then -- acting as an imported module

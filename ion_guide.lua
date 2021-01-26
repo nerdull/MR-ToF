@@ -25,9 +25,9 @@ local WAVE_S = simion.import "waveformlib.lua"
 local freq_s = nil -- MHz
 local n_step = {} -- count the number of steps that the travelling wave has advanced
 local file = io.open("result.txt", 'w') -- file handler to record ions history
-local px_averages = {} -- moving average of ion's x-position, mm
-local trace_skip = 100000 -- print out px_averages every this number of simulation steps
-local trace_count = 0 -- counter relative to trace_skip
+local px_avg = {} -- moving average of ion's x-position, mm
+local trace_skip = 100000 -- print out px_avg every this number of simulation steps
+local trace_count = {} -- counter relative to trace_skip
 local die_from = {} -- cause for the termination of an ion's trajectory
 local causes = { -- the first four are predefined by SIMION
     [-1] = "hitting electrode";
@@ -193,15 +193,15 @@ function segment.other_actions()
     -- [[ trace ion's x-position, adapted from temperature average in 'collision_hs1.lua'
     local reset_time = ion_time_of_flight<200 and ion_time_of_flight/2 or 100 -- micro-s
     local weight = 1 - ion_time_step/reset_time
-    px_averages[ion_number] = weight*(px_averages[ion_number] or ion_px_mm) + (1-weight)*ion_px_mm
-    if trace_count == 0 then
+    px_avg[ion_number] = weight*(px_avg[ion_number] or ion_px_mm) + (1-weight)*ion_px_mm
+    if trace_count[ion_number] == 0 then
         print(string.format("Ion %d: <x> = %.2f mm, ToF = %.3f ms",
-            ion_number, px_averages[ion_number], ion_time_of_flight/1e3))
+            ion_number, px_avg[ion_number], ion_time_of_flight/1e3))
     end
-    trace_count = (trace_count+1) % trace_skip
+    trace_count[ion_number] = ((trace_count[ion_number] or 0) + 1) % trace_skip
     --]]
     -- [[ forcibly terminate endless trappings
-    if px_averages[ion_number] <= eject_point and px_averages[ion_number] >= eject_point-0.05 then
+    if px_avg[ion_number] <= eject_point and px_avg[ion_number] >= eject_point-0.05 then
         ion_splat = -5
     end
     --]]
