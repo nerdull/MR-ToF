@@ -6,11 +6,12 @@
 # local n_ring = _G.n_ring
 # local d = _G.d
 # local s = _G.s
+# local focus = _G.focus
 # local r_0 = _G.r_0
 # local r_m = _G.r_m
 # local grid_unit = _G.grid_unit
 
-# local length = d*n_ring
+# local length = d*(n_ring-1) + s + focus
 # local n_x = math.ceil(length/grid_unit) + 1
 # local n_y = math.ceil(r_m/grid_unit) + 1
 

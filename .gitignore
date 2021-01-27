@@ -17,3 +17,6 @@
 # temporary files
 *.swp
 *.tmp
+
+# result files
+*.txt

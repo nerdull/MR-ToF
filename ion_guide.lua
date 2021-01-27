@@ -12,7 +12,6 @@ adjustable _freq_f = M.freq_f -- MHz
 adjustable _freq_ratio = M.freq_ratio
 adjustable _V_0 = M.V_0 -- V
 adjustable _V_l = M.V_l -- V
-local eject_point = M.eject_point -- final equilibrium x-position, mm
 
 local HS1 = simion.import "collision_hs1.lua"
 adjustable _pressure_pa = 0.5 -- set 0 to disable buffer gas, Pa
@@ -24,18 +23,18 @@ local WAVE_S = simion.import "waveformlib.lua"
 
 local freq_s = nil -- MHz
 local n_step = {} -- count the number of steps that the travelling wave has advanced
-local file = io.open("result.txt", 'w') -- file handler to record ions history
-local px_avg = {} -- moving average of ion's x-position, mm
-local trace_skip = 100000 -- print out px_avg every this number of simulation steps
-local trace_count = {} -- counter relative to trace_skip
-local die_from = {} -- cause for the termination of an ion's trajectory
-local causes = { -- the first four are predefined by SIMION
-    [-1] = "hitting electrode";
-    [-2] = "dead in water";
-    [-3] = "outside workbench";
-    [-4] = "ion killed";
-    [-5] = "prepared for ejection";
-}
+local file = io.open("ion_guide_ejection.ion", 'w') -- file handler to record ion state at equilibrium
+local last_retrieval = nil -- micro-s
+local n_state = 0 -- count the number of retrieved ion states
+file:write
+[[
+;File: ion_guide_ejection.ion
+;Author: X. Chen
+;Description: definition of individual ions for ejection
+;License: GNU GPLv3
+
+;0
+]]
 
 function segment.initialize_run()
     -- put it here so that it can be properly updated once _freq_ratio is set manually
@@ -84,6 +83,22 @@ function segment.initialize_run()
                 };
             };
             WAVE_F.electrode(6) {
+                WAVE_F.lines {
+                    {time=0, potential=-_V_0}; -- micro-s, V
+                    {time=1/(2*_freq_f), potential=-_V_0};
+                    {time=1/(2*_freq_f), potential=_V_0};
+                    {time=1/_freq_f, potential=_V_0};
+                };
+            };
+            WAVE_F.electrode(7) {
+                WAVE_F.lines {
+                    {time=0, potential=_V_0}; -- micro-s, V
+                    {time=1/(2*_freq_f), potential=_V_0};
+                    {time=1/(2*_freq_f), potential=-_V_0};
+                    {time=1/_freq_f, potential=-_V_0};
+                };
+            };
+            WAVE_F.electrode(8) {
                 WAVE_F.lines {
                     {time=0, potential=-_V_0}; -- micro-s, V
                     {time=1/(2*_freq_f), potential=-_V_0};
@@ -163,9 +178,18 @@ function segment.fast_adjust()
         WAVE_S.segment.fast_adjust("append")
     end
     -- blocking barrier on the end ring
-    adj_elect[6] = adj_elect[6] + _V_l
+    adj_elect[8] = adj_elect[8] + _V_l
 end
 
+function retrieve()
+    local speed, az, el = simion.rect3d_to_polar3d(ion_vx_mm, ion_vy_mm, ion_vz_mm)
+    local ke = simion.speed_to_ke(speed, ion_mass)
+    file:write(string.format(",%g,%d,%g,%g,%g,%g,%g,%g,,\n", ion_mass, ion_charge,
+        ion_px_mm, ion_py_mm, ion_pz_mm, az, el, ke))
+    last_retrieval = ion_time_of_flight
+    n_state = n_state + 1
+    print(string.format("retrieved %d states at %.3f ms", n_state, last_retrieval/1e3))
+end
 
 function segment.other_actions()
     if HS1.segment.other_actions then
@@ -190,26 +214,16 @@ function segment.other_actions()
             ion_number, n_step[ion_number], ion_time_of_flight/1e3, n_step[ion_number]%4+1))
     end
     --]]
-    -- [[ trace ion's x-position, adapted from temperature average in 'collision_hs1.lua'
-    local reset_time = ion_time_of_flight<200 and ion_time_of_flight/2 or 100 -- micro-s
-    local weight = 1 - ion_time_step/reset_time
-    px_avg[ion_number] = weight*(px_avg[ion_number] or ion_px_mm) + (1-weight)*ion_px_mm
-    if trace_count[ion_number] == 0 then
-        print(string.format("Ion %d: <x> = %.2f mm, ToF = %.3f ms",
-            ion_number, px_avg[ion_number], ion_time_of_flight/1e3))
-    end
-    trace_count[ion_number] = ((trace_count[ion_number] or 0) + 1) % trace_skip
-    --]]
-    -- [[ forcibly terminate endless trappings
-    if px_avg[ion_number] <= eject_point and px_avg[ion_number] >= eject_point-0.05 then
-        ion_splat = -5
-    end
-    --]]
-    -- [[ reset the seed to get consistent results of the same ion in different runs
-    if ion_splat ~= 0 then
-        die_from[ion_number] = causes[ion_splat]
-        if _random_seed ~= 0 then
-            seed(_random_seed-1)
+    -- [[ record ion state at equilibrium
+    if ion_time_of_flight >= 5000 then -- ion should have long been in equilibrium by 5 ms
+        if n_state < 2000 then -- in total retrieve 2000 ion states over 10 ms
+            if not last_retrieval then -- first time retrieval
+                retrieve()
+            elseif ion_time_of_flight - last_retrieval >= 5 then -- retrieve ion state every 5 micro-s
+                retrieve()
+            end
+        else
+            ion_splat = -5 -- kill the ion
         end
     end
     --]]
@@ -219,8 +233,6 @@ function segment.terminate()
     if HS1.segment.terminate then
         HS1.segment.terminate()
     end
-    file:write(string.format("Ion %d finished at %.3f ms due to %s.\n",
-        ion_number, ion_time_of_flight/1e3, die_from[ion_number]))
 end
 
 function segment.terminate_run()

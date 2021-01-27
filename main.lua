@@ -7,11 +7,12 @@ License: GNU GPLv3
 
 -- [[ define parameters
 m_ring = 9 * 4 -- rings in transport section
-n_ring = m_ring + 4 -- plus 4 rings in storage section
+n_ring = m_ring + 4 -- plus 4 rings in storage/ejection section
 r_0 = 2 -- mm
 r_m = r_0 * 2 -- mm
 d = 2.3 -- mm
 s = 1.4 -- mm
+focus = 10 -- mm, distance relative to the exit of the ion guide
 grid_unit = 5e-3-- mm
 
 local freq_f = 3.15 -- MHz
@@ -25,7 +26,6 @@ if pcall(debug.getlocal, 4, 1) then -- acting as an imported module
     M.freq_ratio = freq_ratio
     M.V_0 = V_0
     M.V_l = V_l
-    M.eject_point = d*(m_ring+1) + s/2
     return M
 end
 --]]

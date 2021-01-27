@@ -19,10 +19,14 @@ end
 
 electrodes[5] = {
     [m_ring+1] = 1;
-    [m_ring+2] = -1;
-    [m_ring+3] = 1;
 }
 electrodes[6] = {
+    [m_ring+2] = 1;
+}
+electrodes[7] = {
+    [m_ring+3] = 1;
+}
+electrodes[8] = {
     [m_ring+4] = 1;
 }
 
