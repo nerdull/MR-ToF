@@ -216,7 +216,7 @@ function segment.other_actions()
     --]]
     -- [[ record ion state at equilibrium
     if ion_time_of_flight >= 5000 then -- ion should have long been in equilibrium by 5 ms
-        if n_state < 2000 then -- in total retrieve 2000 ion states over 10 ms
+        if n_state < 1000 then -- in total retrieve 1000 ion states over 5 ms
             if not last_retrieval then -- first time retrieval
                 retrieve()
             elseif ion_time_of_flight - last_retrieval >= 5 then -- retrieve ion state every 5 micro-s
