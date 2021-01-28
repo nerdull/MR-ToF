@@ -25,6 +25,7 @@ local freq_s = nil -- MHz
 local n_step = {} -- count the number of steps that the travelling wave has advanced
 local file = io.open("ion_guide_ejection.ion", 'w') -- file handler to record ion state at equilibrium
 local last_retrieval = nil -- micro-s
+local retrieval_interval = nil -- randomised between 0 and 10 micro-s
 local n_state = 0 -- count the number of retrieved ion states
 file:write
 [[
@@ -188,6 +189,7 @@ function retrieve()
         ion_px_mm, ion_py_mm, ion_pz_mm, az, el, ke))
     last_retrieval = ion_time_of_flight
     n_state = n_state + 1
+    retrieval_interval = 10*simion.rand() -- micro-s
     print(string.format("retrieved %d states at %.3f ms", n_state, last_retrieval/1e3))
 end
 
@@ -219,7 +221,7 @@ function segment.other_actions()
         if n_state < 1000 then -- in total retrieve 1000 ion states over 5 ms
             if not last_retrieval then -- first time retrieval
                 retrieve()
-            elseif ion_time_of_flight - last_retrieval >= 5 then -- retrieve ion state every 5 micro-s
+            elseif ion_time_of_flight - last_retrieval >= retrieval_interval then
                 retrieve()
             end
         else
