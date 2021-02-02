@@ -1,0 +1,35 @@
+--[[
+File: ion_guide.pa+
+Author: X. Chen
+Description: proportional coefficients of electrode combinations for fast scaling potentials
+License: GNU GPLv3
+--]]
+
+local m_ring = _G.m_ring
+
+local electrodes = {}
+
+for elect=1,4 do
+    local map = {}
+    for i=elect,m_ring,4 do
+        map[i] = 1
+    end
+    electrodes[elect] = map
+end
+
+electrodes[5] = {
+    [m_ring+1] = 1;
+}
+electrodes[6] = {
+    [m_ring+2] = 1;
+}
+electrodes[7] = {
+    [m_ring+3] = 1;
+}
+electrodes[8] = {
+    [m_ring+4] = 1;
+}
+
+potential_array {
+    scalable_electrodes = electrodes;
+}
