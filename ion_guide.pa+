@@ -6,6 +6,7 @@ License: GNU GPLv3
 --]]
 
 local m_ring = _G.m_ring
+local n_ring = _G.n_ring
 
 local electrodes = {}
 
@@ -28,6 +29,10 @@ electrodes[7] = {
 }
 electrodes[8] = {
     [m_ring+4] = 1;
+}
+
+electrodes[9] = {
+    [n_ring+1] = 1;
 }
 
 potential_array {

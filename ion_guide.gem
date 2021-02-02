@@ -9,9 +9,11 @@
 # local focus = _G.focus
 # local r_0 = _G.r_0
 # local r_m = _G.r_m
+# local r_t = _G.r_t
+# local l_t = _G.l_t
 # local grid_unit = _G.grid_unit
 
-# local length = d*(n_ring-1) + s + focus
+# local length = d*(n_ring-1) + s + focus + l_t/2
 # local n_x = math.ceil(length/grid_unit) + 1
 # local n_y = math.ceil(r_m/grid_unit) + 1
 
@@ -31,3 +33,13 @@ electrode($(i)) {
     }
 }
 # end
+
+electrode($(n_ring+1)) {
+    locate($(length-l_t/2), $(r_t)) {
+        fill {
+            within {
+                box(-$(l_t/2), 0, $(l_t/2), $(r_m-r_t))
+            }
+        }
+    }
+}

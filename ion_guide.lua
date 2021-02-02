@@ -24,12 +24,28 @@ adjustable _random_seed = 1 -- set 0 to let SIMION select the seed
 
 local WAVE_F = simion.import "waveformlib.lua"
 
+local TP = simion.import "testplanelib.lua"
+
 local file -- handler to record ion's final kinetic state
-local scale -- proportionally scale the ejection voltages
 local splat_y = {} -- mm, y-position of splashed ions at the focal plane
 local splat_z = {} -- mm, z-position of splashed ions at the focal plane
 local splat_tof = {} -- micro-s, time-of-flight of splashed ions
 local splat_ke = {} -- eV, kinetic energy of splashed ions
+
+local function monitor()
+    local r, _ = simion.rect_to_polar(ion_py_mm, ion_pz_mm) -- mm, degree
+    if r <= r_f then -- focused nicely
+        local speed = math.sqrt(ion_vx_mm^2 + ion_vy_mm^2 + ion_vz_mm^2) -- mm/micro-s
+        local ke = simion.speed_to_ke(speed, ion_mass) -- eV
+        splat_y[#splat_y+1] = ion_py_mm
+        splat_z[#splat_z+1] = ion_pz_mm
+        splat_tof[#splat_tof+1] = ion_time_of_flight
+        splat_ke[#splat_ke+1] = ke
+        file:write(string.format("%d,%.5f,%.5f,%.5f,%.5f,%.5f\n",
+            ion_number, ion_py_mm, ion_pz_mm, r, ion_time_of_flight, ke))
+    end
+end
+local screen = TP(focal_plane, 0, 0, 1, 0, 0, monitor) -- on-plane point and normal vector
 
 function segment.flym()
     -- [[ fast RF for radial confinement
@@ -103,14 +119,10 @@ function segment.flym()
         frequency = _freq_f; -- MHz
     }
     --]]
-    for x=1,5,.5 do
-        scale = x
-        print("voltage scaling factor is " .. scale)
-        file = io.open(string.format("result_%02.0f.txt", scale*10), 'w')
-        file:write("# ID,y(mm),z(mm),r(mm),ToF(micro-s),KE(eV)\n")
-        run()
-        file:close()
-    end
+    file = io.open("result.txt", 'w')
+    file:write("# ID,y(mm),z(mm),r(mm),ToF(micro-s),KE(eV)\n")
+    run()
+    file:close()
 end
 
 function segment.initialize_run()
@@ -138,6 +150,9 @@ function segment.tstep_adjust()
     if WAVE_F.segment.tstep_adjust then
         WAVE_F.segment.tstep_adjust()
     end
+    if screen.tstep_adjust then
+        screen.tstep_adjust()
+    end
 end
 
 function segment.fast_adjust()
@@ -146,9 +161,11 @@ function segment.fast_adjust()
     end
     -- [[ ejection
     adj_elect[4] = adj_elect[4] + _V_l -- left blocking ring is always at high
-    adj_elect[5] = adj_elect[5] + _V_l*scale
-    adj_elect[7] = adj_elect[7] - _V_l*scale
-    adj_elect[8] = adj_elect[8] - 2*_V_l*scale
+    adj_elect[5] = adj_elect[5] + _V_l/10*16.82
+    adj_elect[6] = adj_elect[6] - _V_l/10*1.25
+    adj_elect[7] = adj_elect[7] - _V_l/10*3.2
+    adj_elect[8] = adj_elect[8] - _V_l/10*25
+    adj_elect[9] = -_V_l/10*20
     --]]
 end
 
@@ -158,6 +175,9 @@ function segment.other_actions()
     end
     if WAVE_F.segment.other_actions then
         WAVE_F.segment.other_actions()
+    end
+    if screen.other_actions then
+        screen.other_actions()
     end
     -- [[ forcibly kill trapped ions
     if ion_time_of_flight >= 30 then
@@ -169,19 +189,6 @@ end
 function segment.terminate()
     if HS1.segment.terminate then
         HS1.segment.terminate()
-    end
-    if ion_px_mm > focal_plane - 1e-7 then -- cross the focal plane
-        local r, _ = simion.rect_to_polar(ion_py_mm, ion_pz_mm) -- mm, degree
-        if r <= r_f then -- focused nicely
-            local speed = math.sqrt(ion_vx_mm^2 + ion_vy_mm^2 + ion_vz_mm^2) -- mm/micro-s
-            local ke = simion.speed_to_ke(speed, ion_mass) -- eV
-            splat_y[#splat_y+1] = ion_py_mm
-            splat_z[#splat_z+1] = ion_pz_mm
-            splat_tof[#splat_tof+1] = ion_time_of_flight
-            splat_ke[#splat_ke+1] = ke
-            file:write(string.format("%d,%.5f,%.5f,%.5f,%.5f,%.5f\n",
-                ion_number, ion_py_mm, ion_pz_mm, r, ion_time_of_flight, ke))
-        end
     end
 end
 
@@ -211,7 +218,7 @@ function segment.terminate_run()
     --]]
     -- [[ take a screenshot, then clear trajectory for the next run
     simion.printer.type = "png"
-    simion.printer.filename = string.format("screenshot_%02.0f.png", scale*10)
+    simion.printer.filename = "screenshot.png"
     simion.printer.scale = 1
     simion.print_screen()
     sim_rerun_flym = 1

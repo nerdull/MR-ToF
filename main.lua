@@ -12,6 +12,8 @@ r_0 = 2 -- mm
 r_m = r_0 * 2 -- mm
 d = 2.3 -- mm
 s = 1.4 -- mm
+r_t = 3 -- mm, inner radius of drift tube
+l_t = 5 -- mm, length of drift tube
 focus = 10 -- mm, distance relative to the exit of the ion guide
 grid_unit = 5e-3-- mm
 
