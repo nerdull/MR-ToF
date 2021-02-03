@@ -8,6 +8,7 @@ License: GNU GPLv3
 simion.workbench_program()
 
 local Stat = require "simionx.Statistics"
+local SimplexOptimizer = require "simionx.SimplexOptimizer"
 
 local M = simion.import "main.lua"
 adjustable _freq_f = M.freq_f -- MHz
@@ -19,18 +20,22 @@ local r_f = M.r_f -- mm
 
 local HS1 = simion.import "collision_hs1.lua"
 adjustable _pressure_pa = 0.5 -- set 0 to disable buffer gas, Pa
-adjustable _trace_level = 2 -- keep an eye on ion's kinetic energy
+adjustable _trace_level = 0 -- don't keep an eye on ion's kinetic energy
 adjustable _random_seed = 1 -- set 0 to let SIMION select the seed
 
 local WAVE_F = simion.import "waveformlib.lua"
 
 local TP = simion.import "testplanelib.lua"
 
-local file -- handler to record ion's final kinetic state
+local mode = "record" -- chosen from {"optimize", "record"}
+
 local splat_y = {} -- mm, y-position of splashed ions at the focal plane
 local splat_z = {} -- mm, z-position of splashed ions at the focal plane
 local splat_tof = {} -- micro-s, time-of-flight of splashed ions
 local splat_ke = {} -- eV, kinetic energy of splashed ions
+
+local file -- handler to record ion's final kinetic state
+local file_id -- file identifier for different runs
 
 local function monitor()
     local r, _ = simion.rect_to_polar(ion_py_mm, ion_pz_mm) -- mm, degree
@@ -41,11 +46,20 @@ local function monitor()
         splat_z[#splat_z+1] = ion_pz_mm
         splat_tof[#splat_tof+1] = ion_time_of_flight
         splat_ke[#splat_ke+1] = ke
-        file:write(string.format("%d,%.5f,%.5f,%.5f,%.5f,%.5f\n",
-            ion_number, ion_py_mm, ion_pz_mm, r, ion_time_of_flight, ke))
+        if mode == "record" then
+            file:write(string.format("%d,%.5f,%.5f,%.5f,%.5f,%.5f\n",
+                ion_number, ion_py_mm, ion_pz_mm, r, ion_time_of_flight, ke))
+        end
     end
 end
 local screen = TP(focal_plane, 0, 0, 1, 0, 0, monitor) -- on-plane point and normal vector
+
+local V1, V2, V3, V4, V5 -- V, voltages of ring lens that need to be optimized
+local metric -- loss function of the optimization
+local opt = SimplexOptimizer {
+    start = {7.447, 3.688, -2.168, -5.02, -11.46}; -- V
+    step = {1, 1, 1, 1, 1}; -- V
+}
 
 function segment.flym()
     -- [[ fast RF for radial confinement
@@ -119,10 +133,21 @@ function segment.flym()
         frequency = _freq_f; -- MHz
     }
     --]]
-    file = io.open("result.txt", 'w')
-    file:write("# ID,y(mm),z(mm),r(mm),ToF(micro-s),KE(eV)\n")
-    run()
-    file:close()
+    if mode == "optimize" then -- optimize the lens voltages and record the last result
+        while opt:running() do
+            print("=== try another parameter set ===")
+            V1, V2, V3, V4, V5 = opt:values()
+            print("Lens voltages are " .. table.concat({V1, V2, V3, V4, V5}, ", ") .. " V.")
+            run()
+            opt:result(metric)
+        end
+        print("=== replay the last run ===")
+        mode = "record"
+        run()
+    elseif mode == "record" then -- record the result with the given lens voltages
+        V1, V2, V3, V4, V5 = unpack {7.447, 3.688, -2.168, -5.02, -11.46}
+        run()
+    end
 end
 
 function segment.initialize_run()
@@ -131,10 +156,17 @@ function segment.initialize_run()
         simion.seed(_random_seed-1)
     end
     --]]
-    -- [[ view and retain trajectory for screenshot in the end
-    sim_rerun_flym = 0
-    sim_trajectory_image_control = 0
-    --]]
+    if mode == "optimize" then -- refresh trajectory at each run but not retain
+        sim_trajectory_image_control = 1
+    elseif mode == "record" then -- view and retain trajectory for screenshot in the end
+        sim_rerun_flym = 0
+        sim_trajectory_image_control = 0
+        file = io.open(string.format("result%s.txt", file_id or ''), 'w')
+        file:write("# ID,y(mm),z(mm),r(mm),ToF(micro-s),KE(eV)\n")
+        simion.printer.type = "png"
+        simion.printer.filename = string.format("screenshot%s.png", file_id or '')
+        simion.printer.scale = 1
+    end
 end
 
 function segment.initialize()
@@ -159,13 +191,13 @@ function segment.fast_adjust()
     if WAVE_F.segment.fast_adjust then
         WAVE_F.segment.fast_adjust()
     end
-    -- [[ ejection
+    -- [[ lenses for ion ejection
     adj_elect[4] = adj_elect[4] + _V_l -- left blocking ring is always at high
-    adj_elect[5] = adj_elect[5] + _V_l/10*16.82
-    adj_elect[6] = adj_elect[6] - _V_l/10*1.25
-    adj_elect[7] = adj_elect[7] - _V_l/10*3.2
-    adj_elect[8] = adj_elect[8] - _V_l/10*25
-    adj_elect[9] = -_V_l/10*20
+    adj_elect[5] = adj_elect[5] + V1
+    adj_elect[6] = adj_elect[6] + V2
+    adj_elect[7] = adj_elect[7] + V3
+    adj_elect[8] = adj_elect[8] + V4
+    adj_elect[9] = V5
     --]]
 end
 
@@ -193,34 +225,39 @@ function segment.terminate()
 end
 
 function segment.terminate_run()
-    -- [[ result summary
-    if #splat_y > 0 then
+    if #splat_y >= 2 then -- at least 2 entries for calculating variances
         local mean_y, var_y = Stat.array_mean_and_variance(splat_y)
         local mean_z, var_z = Stat.array_mean_and_variance(splat_z)
         local mean_tof, var_tof = Stat.array_mean_and_variance(splat_tof)
         local mean_ke, var_ke = Stat.array_mean_and_variance(splat_ke)
-        local str_r = string.format("<r> = %.3f%+.3fi mm, dr = %.3f mm", mean_y, mean_z, math.sqrt(var_y+var_z)) 
-        local str_tof = string.format("<tof> = %.3f micro-s, dtof = %.3f micro-s", mean_tof, math.sqrt(var_tof))
-        local str_ke = string.format("<ke> = %.3f eV, dke = %.3f eV", mean_ke, math.sqrt(var_ke))
-        print(str_r)
-        print(str_tof)
-        print(str_ke)
-        file:write("# " .. str_r .. '\n')
-        file:write("# " .. str_tof .. '\n')
-        file:write("# " .. str_ke .. '\n')
+        if mode == "optimize" then
+            metric = math.sqrt(var_y + var_z)
+            print("Loss function is at " .. metric .. '.')
+        elseif mode == "record" then
+            local str_r = string.format("<r> = %.3f%+.3fi mm, dr = %.3f mm", mean_y, mean_z, math.sqrt(var_y+var_z)) 
+            local str_tof = string.format("<tof> = %.3f micro-s, dtof = %.3f micro-s", mean_tof, math.sqrt(var_tof))
+            local str_ke = string.format("<ke> = %.3f eV, dke = %.3f eV", mean_ke, math.sqrt(var_ke))
+            file:write("# " .. str_r .. '\n'); print(str_r)
+            file:write("# " .. str_tof .. '\n'); print(str_tof)
+            file:write("# " .. str_ke .. '\n'); print(str_ke)
+            file:close()
+            simion.print_screen()
+            sim_rerun_flym = 1 -- clear trajectory for the next run
+        end
+    else -- exception handling
+        print("Warning: too few ions.")
+        if mode == "optimize" then
+            metric = math.huge
+        elseif mode == "record" then
+            file:close()
+            simion.print_screen()
+            sim_rerun_flym = 1 -- clear trajectory for the next run
+        end
     end
-    --]]
     -- [[ reset arrays for the next run
     splat_y = {}
     splat_z = {}
     splat_tof = {}
     splat_ke = {}
-    --]]
-    -- [[ take a screenshot, then clear trajectory for the next run
-    simion.printer.type = "png"
-    simion.printer.filename = "screenshot.png"
-    simion.printer.scale = 1
-    simion.print_screen()
-    sim_rerun_flym = 1
     --]]
 end
