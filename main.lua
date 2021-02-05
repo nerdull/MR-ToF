@@ -5,22 +5,40 @@ Description: entry portal of the repository
 License: GNU GPLv3
 --]]
 
---[[ SIMION's Nelder-Mead optimiser
-local SO = require "simionx.SimplexOptimizer"
---]]
--- [[ the improved Nelder-Mead optimiser
-local SO = simion.import "simplexoptimiser.lua"
---]]
+-- [[ define parameters
+m_ring = 9 * 4 -- rings in transport section
+n_ring = m_ring + 4 -- plus 4 rings in storage/ejection section
+r_0 = 2 -- mm
+r_m = r_0 * 2 -- mm
+d = 2.3 -- mm
+s = 1.4 -- mm
+r_t = 3 -- mm, inner radius of drift tube
+l_t = 5 -- mm, length of drift tube
+focus = 10 -- mm, distance relative to the exit of the ion guide
+grid_unit = 5e-3-- mm
 
-local function Rosenbrock(x, y, z) -- the global minimum is at (1, 1, 1)
-    return (1-x)^2 + 100*(y-x^2)^2 + (1-y)^2 + 100*(z-y^2)^2
+local freq_f = 3.15 -- MHz
+local freq_ratio = 1575 -- integer, freq_s = (2*freq_f) / (4*freq_ratio)
+local V_0 = 70 -- V
+local V_l = 2.9 -- V
+local r_f = r_0 -- mm, beam spot size in radius at the focal plane
+
+if pcall(debug.getlocal, 4, 1) then -- acting as an imported module
+    local M = {}
+    M.freq_f = freq_f
+    M.freq_ratio = freq_ratio
+    M.V_0 = V_0
+    M.V_l = V_l
+    M.focal_plane = d*(n_ring-1) + s + focus
+    M.r_f = r_f
+    return M
 end
+--]]
 
-local opt = SO {
-    start = {10, -10, 10};
-    func = Rosenbrock;
-}
-
-opt:run()
-
-print(string.format("After %d iterations, the minimum is found at (%.7f, %.7f, %.7f).", opt:ncalls(), opt:values()))
+-- [[ build potential arrays
+if not pcall(debug.getlocal, 4, 1) then -- acting as a main file
+    local fname = "ion_guide"
+    simion.command(string.format("gem2pa %s.gem %s.pa#", fname, fname))
+    simion.command(string.format("refine --convergence=5e-3 %s.pa#", fname)) -- default: 5e-3, lowest: 1e-7
+end
+--]]

@@ -1,0 +1,17 @@
+--[[
+File: ion_guide.fly2
+Author: X. Chen
+Description: definition of ion beams
+License: GNU GPLv3
+--]]
+
+particles {
+    coordinates = 0;
+    standard_beam {
+    mass = 202.984; -- u
+    charge = 1; -- e
+    ke = 2.673; -- eV
+    position = vector(1e-7, .63, 0); -- mm
+    az = 0, el = 17.257; -- degree
+    };
+}
