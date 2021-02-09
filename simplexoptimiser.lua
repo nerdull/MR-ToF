@@ -70,6 +70,7 @@ local function create(_, t)
     _values = {},
     _co = nil,
     _test_value = {},
+    _opt_value = {},
     _callcount = 0,
     _radius = nil
   }
@@ -129,6 +130,10 @@ function M:values()
   return unpack(self._test_value)
 end
 
+function M:optimal_values()
+  return unpack(self._opt_value)
+end
+
 function M:radius()
   return self._radius
 end
@@ -149,6 +154,7 @@ function M:run()
   local function f(v)
     self._callcount = self._callcount + 1
     if self._maxcalls and self._callcount > self._maxcalls then
+      print("SO-DEBUG", "maximal iteration reached")
       return
     end
     self._test_value = {unpack(v)}
@@ -160,6 +166,7 @@ function M:run()
   for n=1,#self._points do
     values[n] = f(points[n])
     if not values[n] then
+      print("SO-DEBUG", "bad initial values")
       return
     end
   end
@@ -255,6 +262,9 @@ function M:run()
 
                 local fs = f(points[m])
                 if not fs then
+                    for n=1,#start do -- roll back to the previous point
+                        points[m][n] = 2*points[m][n] - points[ibest][n]
+                    end
                     is_valid = false
                     break
                 end
@@ -270,10 +280,21 @@ function M:run()
     -- Check whether polytope radius target reached.
     self._radius = get_radius(points)
     if self._minradius and self._radius < self._minradius then
+      print("SO-DEBUG", "convergence reached")
       break
     end
 
   end  -- while
+
+  -- Find indices of best point.
+  local ibest = 1 -- B
+  for n=2,#points do
+      local val = values[n]
+      if val < values[ibest] then
+          ibest = n
+      end
+  end
+  self._opt_value = {unpack(points[ibest])}
 end
 
 return M
