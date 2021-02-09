@@ -8,7 +8,6 @@ License: GNU GPLv3
 simion.workbench_program()
 
 local Stat = require "simionx.Statistics"
-local SimplexOptimizer = require "simionx.SimplexOptimizer"
 
 local M = simion.import "main.lua"
 adjustable _freq_f = M.freq_f -- MHz
@@ -27,7 +26,9 @@ local WAVE_F = simion.import "waveformlib.lua"
 
 local TP = simion.import "testplanelib.lua"
 
-local mode = "record" -- chosen from {"optimize", "record"}
+local SO = simion.import "simplexoptimiser.lua"
+
+local mode = "optimise" -- chosen from {"optimise", "record"}
 
 local splat_y = {} -- mm, y-position of splashed ions at the focal plane
 local splat_z = {} -- mm, z-position of splashed ions at the focal plane
@@ -54,11 +55,12 @@ local function monitor()
 end
 local screen = TP(focal_plane, 0, 0, 1, 0, 0, monitor) -- on-plane point and normal vector
 
-local V1, V2, V3, V4, V5 -- V, voltages of ring lens that need to be optimized
-local metric -- loss function of the optimization
-local opt = SimplexOptimizer {
-    start = {7.447, 3.688, -2.168, -5.02, -11.46}; -- V
-    step = {1, 1, 1, 1, 1}; -- V
+local V1, V2, V3, V4, V5 -- V, voltages of ring lens that need to be optimised
+local metric -- objective function of the optimisation
+local opt = SO {
+    start = {3, -3, -4.75, -15, -11}; -- V
+    step = {2, 2, 2, 2, 2}; -- V
+    precision = 3 -- number of decimal places which the values are rounded to
 }
 
 function segment.flym()
@@ -133,7 +135,7 @@ function segment.flym()
         frequency = _freq_f; -- MHz
     }
     --]]
-    if mode == "optimize" then -- optimize the lens voltages and record the last result
+    if mode == "optimise" then -- optimise the lens voltages and record the optimal result
         while opt:running() do
             print("=== try another parameter set ===")
             V1, V2, V3, V4, V5 = opt:values()
@@ -141,11 +143,12 @@ function segment.flym()
             run()
             opt:result(metric)
         end
-        print("=== replay the last run ===")
+        print("=== replay the optimal run ===")
         mode = "record"
+        V1, V2, V3, V4, V5 = opt:optimal_values()
         run()
     elseif mode == "record" then -- record the result with the given lens voltages
-        V1, V2, V3, V4, V5 = unpack {7.447, 3.688, -2.168, -5.02, -11.46}
+        V1, V2, V3, V4, V5 = unpack {4, -2, -3.75, -14, -10} -- V
         run()
     end
 end
@@ -156,11 +159,12 @@ function segment.initialize_run()
         simion.seed(_random_seed-1)
     end
     --]]
-    if mode == "optimize" then -- refresh trajectory at each run but not retain
+    if mode == "optimise" then -- refresh trajectory at each run but not retain
         sim_trajectory_image_control = 1
     elseif mode == "record" then -- view and retain trajectory for screenshot in the end
         sim_rerun_flym = 0
         sim_trajectory_image_control = 0
+        print("Lens voltages are " .. table.concat({V1, V2, V3, V4, V5}, ", ") .. " V.")
         file = io.open(string.format("result%s.txt", file_id or ''), 'w')
         file:write("# ID,y(mm),z(mm),r(mm),ToF(micro-s),KE(eV)\n")
         simion.printer.type = "png"
@@ -211,6 +215,11 @@ function segment.other_actions()
     if screen.other_actions then
         screen.other_actions()
     end
+    -- [[ selectively fly every tenth ion 
+    if ion_number % 10 ~= 0 then
+        ion_splat = 1
+    end
+    --]]
     -- [[ forcibly kill trapped ions
     if ion_time_of_flight >= 30 then
         ion_splat = 1
@@ -230,9 +239,9 @@ function segment.terminate_run()
         local mean_z, var_z = Stat.array_mean_and_variance(splat_z)
         local mean_tof, var_tof = Stat.array_mean_and_variance(splat_tof)
         local mean_ke, var_ke = Stat.array_mean_and_variance(splat_ke)
-        if mode == "optimize" then
+        if mode == "optimise" then
             metric = math.sqrt(var_y + var_z)
-            print("Loss function is at " .. metric .. '.')
+            print("Objective function is " .. metric .. '.')
         elseif mode == "record" then
             local str_r = string.format("<r> = %.3f%+.3fi mm, dr = %.3f mm", mean_y, mean_z, math.sqrt(var_y+var_z)) 
             local str_tof = string.format("<tof> = %.3f micro-s, dtof = %.3f micro-s", mean_tof, math.sqrt(var_tof))
@@ -246,7 +255,7 @@ function segment.terminate_run()
         end
     else -- exception handling
         print("Warning: too few ions.")
-        if mode == "optimize" then
+        if mode == "optimise" then
             metric = math.huge
         elseif mode == "record" then
             file:close()
