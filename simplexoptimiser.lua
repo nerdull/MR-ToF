@@ -42,6 +42,16 @@ local function get_radius(points)
   return radius
 end
 
+-- round the floating point number x to the decimal place n
+local function round(x, n)
+    if x > 0 then
+        return math.floor(x * 10^n + .5) * 10^(-n)
+    elseif x < 0 then
+        return -math.floor(-x * 10^n + .5) * 10^(-n)
+    else
+        return 0
+    end
+end
 
 local argtypes
 local function create(_, t)
@@ -50,6 +60,7 @@ local function create(_, t)
     step = Type.number_array + Type['nil'],
     func = Type['function'] + Type['nil'],
     maxcalls = Type.positive_integer + Type['nil'],
+    precision = Type.nonnegative_integer + Type["nil"],
     minradius = Type.positive_number + Type['nil']
   }
   argtypes:check(t, 2)
@@ -65,7 +76,8 @@ local function create(_, t)
     _step = t.step,
     _func = t.func,
     _maxcalls = t.maxcalls,
-    _minradius = t.minradius or 1e-7,
+    _precision = t.precision or 7,
+    _minradius = t.minradius or t.precision and 10^(-t.precision) or 1e-7,
     _points = {},
     _values = {},
     _co = nil,
@@ -86,10 +98,12 @@ local function create(_, t)
   local points = self._points
   for i=1,#self._start+1 do
     local newpoint = {}
-    for j=1,#self._start do newpoint[j] = self._start[j] end
-    if i > 1 then
-      local im = i-1
-      newpoint[im] = newpoint[im] + self._step[im]
+    for j=1,#self._start do
+        newpoint[j] = self._start[j]
+        if i ~= 1 and j == i-1 then
+            newpoint[j] = newpoint[j] + self._step[j]
+        end
+        newpoint[j] = round(newpoint[j], self._precision)
     end
     points[i] = newpoint
   end
@@ -207,6 +221,7 @@ function M:run()
     local reflectpoint = {}  -- R = 2*M - W
     for n=1,#start do
       reflectpoint[n] = 2*midpoint[n] - points[iworst][n]
+      reflectpoint[n] = round(reflectpoint[n], self._precision)
     end
 
     local fr = f(reflectpoint)
@@ -220,6 +235,7 @@ function M:run()
         local expandpoint = {} -- E = 2*R - M
         for n=1,#start do
           expandpoint[n] = 2*reflectpoint[n] - midpoint[n]
+          expandpoint[n] = round(expandpoint[n], self._precision)
         end
 
         local fe = f(expandpoint)
@@ -241,6 +257,7 @@ function M:run()
       local contractpoint = {}  -- C = (W + M)/2
       for n=1,#start do
         contractpoint[n] = (points[iworst][n] + midpoint[n]) * 0.5
+        contractpoint[n] = round(contractpoint[n], self._precision)
       end
 
       local fc = f(contractpoint)
@@ -256,15 +273,15 @@ function M:run()
 
         for m=1,#points do
             if m ~= ibest then
+                local oldpoint = {unpack(points[m])}
                 for n=1,#start do -- S = (B + S)/2
-                    points[m][n] = (points[ibest][n] + points[m][n]) * 0.5
+                    points[m][n] = (points[ibest][n] + oldpoint[n]) * 0.5
+                    points[m][n] = round(points[m][n], self._precision)
                 end
 
                 local fs = f(points[m])
-                if not fs then
-                    for n=1,#start do -- roll back to the previous point
-                        points[m][n] = 2*points[m][n] - points[ibest][n]
-                    end
+                if not fs then -- roll back to the old point
+                    points[m] = {unpack(oldpoint)}
                     is_valid = false
                     break
                 end
@@ -279,7 +296,7 @@ function M:run()
 
     -- Check whether polytope radius target reached.
     self._radius = get_radius(points)
-    if self._minradius and self._radius < self._minradius then
+    if self._minradius and self._radius <= math.sqrt(#self._start)*self._minradius then
       print("SO-DEBUG", "convergence reached")
       break
     end
