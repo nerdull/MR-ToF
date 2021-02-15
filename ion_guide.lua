@@ -240,10 +240,10 @@ function segment.terminate_run()
         local mean_tof, var_tof = Stat.array_mean_and_variance(splat_tof)
         local mean_ke, var_ke = Stat.array_mean_and_variance(splat_ke)
         if mode == "optimise" then
-            metric = math.sqrt(var_y + var_z)
+            metric = math.sqrt((var_y+var_z)/2)
             print("Objective function is " .. metric .. '.')
         elseif mode == "record" then
-            local str_r = string.format("<r> = %.3f%+.3fi mm, dr = %.3f mm", mean_y, mean_z, math.sqrt(var_y+var_z)) 
+            local str_r = string.format("<r> = %.3f%+.3fi mm, dr = %.3f mm", mean_y, mean_z, math.sqrt((var_y+var_z)/2)) 
             local str_tof = string.format("<tof> = %.3f micro-s, dtof = %.3f micro-s", mean_tof, math.sqrt(var_tof))
             local str_ke = string.format("<ke> = %.3f eV, dke = %.3f eV", mean_ke, math.sqrt(var_ke))
             file:write("# " .. str_r .. '\n'); print(str_r)
