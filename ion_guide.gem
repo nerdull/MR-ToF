@@ -6,14 +6,17 @@
 # local n_ring = _G.n_ring
 # local d = _G.d
 # local s = _G.s
-# local focus = _G.focus
 # local r_0 = _G.r_0
 # local r_m = _G.r_m
 # local r_t = _G.r_t
 # local l_t = _G.l_t
+# local d_t = _G.d_t
+# local r_s = _G.r_s
+# local l_s = _G.l_s
+# local d_s = _G.d_s
 # local grid_unit = _G.grid_unit
 
-# local length = d*(n_ring-1) + s + focus + l_t/2
+# local length = d*(n_ring-1) + s + d_t + l_t + d_s + l_s
 # local n_x = math.ceil(length/grid_unit) + 1
 # local n_y = math.ceil(r_m/grid_unit) + 1
 
@@ -35,10 +38,20 @@ electrode($(i)) {
 # end
 
 electrode($(n_ring+1)) {
-    locate($(length-l_t/2), $(r_t)) {
+    locate($(length-l_s-d_s-l_t/2), $(r_t)) {
         fill {
             within {
                 box(-$(l_t/2), 0, $(l_t/2), $(r_m-r_t))
+            }
+        }
+    }
+}
+
+electrode($(n_ring+2)) {
+    locate($(length-l_s/2), $(r_s)) {
+        fill {
+            within {
+                box(-$(l_s/2), 0, $(l_s/2), $(r_m-r_s))
             }
         }
     }

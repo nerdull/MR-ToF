@@ -13,15 +13,17 @@ r_m = r_0 * 2 -- mm
 d = 2.3 -- mm
 s = 1.4 -- mm
 r_t = 3 -- mm, inner radius of drift tube
-l_t = 5 -- mm, length of drift tube
-focus = 10 -- mm, distance relative to the exit of the ion guide
+l_t = 15 -- mm, length of drift tube
+d_t = 10 -- mm, distance between the ion guide and the drift tube
+r_s = 3 -- mm, inner radius of MR-ToF's shielding electrode
+l_s = 2 -- mm, length of MR-ToF's shielding electrode
+d_s = 10 -- mm, distance between the drift tube and the shielding electrode
 grid_unit = 5e-3-- mm
 
 local freq_f = 3.15 -- MHz
 local freq_ratio = 1575 -- integer, freq_s = (2*freq_f) / (4*freq_ratio)
 local V_0 = 70 -- V
 local V_l = 2.9 -- V
-local r_f = r_0 -- mm, beam spot size in radius at the focal plane
 
 if pcall(debug.getlocal, 4, 1) then -- acting as an imported module
     local M = {}
@@ -29,8 +31,7 @@ if pcall(debug.getlocal, 4, 1) then -- acting as an imported module
     M.freq_ratio = freq_ratio
     M.V_0 = V_0
     M.V_l = V_l
-    M.focal_plane = d*(n_ring-1) + s + focus
-    M.r_f = r_f
+    M.focal_plane = d*(n_ring-1) + s + d_t + l_t/2
     return M
 end
 --]]

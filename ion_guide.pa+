@@ -35,6 +35,10 @@ electrodes[9] = {
     [n_ring+1] = 1;
 }
 
+electrodes[10] = {
+    [n_ring+2] = 1;
+}
+
 potential_array {
     scalable_electrodes = electrodes;
 }

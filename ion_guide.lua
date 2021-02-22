@@ -15,7 +15,6 @@ adjustable _freq_ratio = M.freq_ratio
 adjustable _V_0 = M.V_0 -- V
 adjustable _V_l = M.V_l -- V
 local focal_plane = M.focal_plane -- mm
-local r_f = M.r_f -- mm
 
 local HS1 = simion.import "collision_hs1.lua"
 adjustable _pressure_pa = 0.5 -- set 0 to disable buffer gas, Pa
@@ -28,40 +27,41 @@ local TP = simion.import "testplanelib.lua"
 
 local SO = simion.import "simplexoptimiser.lua"
 
-local mode = "optimise" -- chosen from {"optimise", "record"}
+local mode = "record" -- chosen from {"optimise", "record"}
 
-local splat_y = {} -- mm, y-position of splashed ions at the focal plane
-local splat_z = {} -- mm, z-position of splashed ions at the focal plane
-local splat_tof = {} -- micro-s, time-of-flight of splashed ions
-local splat_ke = {} -- eV, kinetic energy of splashed ions
+local focal_y = {} -- mm, y-position of ions at the focal plane
+local focal_z = {} -- mm, z-position of ions at the focal plane
+local focal_tof = {} -- micro-s, time-of-flight of ions at the focal plane
+local focal_ke = {} -- eV, kinetic energy of ions at the focal plane
 
-local file -- handler to record ion's final kinetic state
-local file_id -- file identifier for different runs
+local file -- handler for recording simulation result
 
 local function monitor()
-    local r, _ = simion.rect_to_polar(ion_py_mm, ion_pz_mm) -- mm, degree
-    if r <= r_f then -- focused nicely
-        local speed = math.sqrt(ion_vx_mm^2 + ion_vy_mm^2 + ion_vz_mm^2) -- mm/micro-s
-        local ke = simion.speed_to_ke(speed, ion_mass) -- eV
-        splat_y[#splat_y+1] = ion_py_mm
-        splat_z[#splat_z+1] = ion_pz_mm
-        splat_tof[#splat_tof+1] = ion_time_of_flight
-        splat_ke[#splat_ke+1] = ke
-        if mode == "record" then
-            file:write(string.format("%d,%.5f,%.5f,%.5f,%.5f,%.5f\n",
-                ion_number, ion_py_mm, ion_pz_mm, r, ion_time_of_flight, ke))
-        end
+    local speed = math.sqrt(ion_vx_mm^2 + ion_vy_mm^2 + ion_vz_mm^2) -- mm/micro-s
+    local ke = simion.speed_to_ke(speed, ion_mass) -- eV
+    focal_y[#focal_y+1] = ion_py_mm
+    focal_z[#focal_z+1] = ion_pz_mm
+    focal_tof[#focal_tof+1] = ion_time_of_flight
+    focal_ke[#focal_ke+1] = ke
+    -- ion_splat = 1 --  prevent backwards crossing
+    if mode == "record" then
+        file:write(string.format("%d,%.5f,%.5f,%.5f,%.5f\n",
+            ion_number, ion_py_mm, ion_pz_mm, ion_time_of_flight, ke))
     end
 end
 local screen = TP(focal_plane, 0, 0, 1, 0, 0, monitor) -- on-plane point and normal vector
 
-local V1, V2, V3, V4, V5 -- V, voltages of ring lens that need to be optimised
+local V1, V2, V3, V4 -- V, voltages of ring lens that need to be optimised
 local metric -- objective function of the optimisation
 local opt = SO {
-    start = {3, -3, -4.75, -15, -11}; -- V
-    step = {2, 2, 2, 2, 2}; -- V
-    precision = 3 -- number of decimal places which the values are rounded to
+    start = {20, 30, 10, 0}; -- V
+    step = {20, 20, -20, -20}; -- V
+    precision = 0; -- number of decimal places which the values are rounded to
 }
+
+local is_pulsed -- whether the drift tube is pulsed to high voltage
+local t_pulse = 6.801 -- micro-s, starting timestamp of the pulse
+local V_t = 3000 -- V, high voltage of the drift tube
 
 function segment.flym()
     -- [[ fast RF for radial confinement
@@ -138,17 +138,17 @@ function segment.flym()
     if mode == "optimise" then -- optimise the lens voltages and record the optimal result
         while opt:running() do
             print("=== try another parameter set ===")
-            V1, V2, V3, V4, V5 = opt:values()
-            print("Lens voltages are " .. table.concat({V1, V2, V3, V4, V5}, ", ") .. " V.")
+            V1, V2, V3, V4 = opt:values()
+            print("Lens voltages are " .. table.concat({V1, V2, V3, V4}, ", ") .. " V.")
             run()
             opt:result(metric)
         end
         print("=== replay the optimal run ===")
         mode = "record"
-        V1, V2, V3, V4, V5 = opt:optimal_values()
+        V1, V2, V3, V4 = opt:optimal_values()
         run()
     elseif mode == "record" then -- record the result with the given lens voltages
-        V1, V2, V3, V4, V5 = unpack {4, -2, -3.75, -14, -10} -- V
+        V1, V2, V3, V4 = unpack {36, 29, -4, 20} -- V
         run()
     end
 end
@@ -164,11 +164,12 @@ function segment.initialize_run()
     elseif mode == "record" then -- view and retain trajectory for screenshot in the end
         sim_rerun_flym = 0
         sim_trajectory_image_control = 0
-        print("Lens voltages are " .. table.concat({V1, V2, V3, V4, V5}, ", ") .. " V.")
-        file = io.open(string.format("result%s.txt", file_id or ''), 'w')
-        file:write("# ID,y(mm),z(mm),r(mm),ToF(micro-s),KE(eV)\n")
+        print("Lens voltages are " .. table.concat({V1, V2, V3, V4}, ", ") .. " V.")
+        file = io.open("result.txt", 'w')
+        file:write("# ID,y(mm),z(mm),ToF(micro-s),KE(eV)\n")
+        file:write(string.format("# x = %g mm\n", focal_plane))
         simion.printer.type = "png"
-        simion.printer.filename = string.format("screenshot%s.png", file_id or '')
+        simion.printer.filename = "screenshot.png"
         simion.printer.scale = 1
     end
 end
@@ -179,8 +180,13 @@ function segment.initialize()
     end
 end
 
+function segment.init_p_values()
+    adj_elect[9] = 0
+    adj_elect[10] = 0
+end
+
 function segment.tstep_adjust()
-    if HS1.segment.tstep_adjust then
+    if HS1.segment.tstep_adjust and ion_px_mm < focal_plane then
         HS1.segment.tstep_adjust()
     end
     if WAVE_F.segment.tstep_adjust then
@@ -189,6 +195,12 @@ function segment.tstep_adjust()
     if screen.tstep_adjust then
         screen.tstep_adjust()
     end
+    -- [[
+    if not is_pulsed then
+        local dt = t_pulse - ion_time_of_flight
+        ion_time_step = math.min(dt, ion_time_step)
+    end
+    --]]
 end
 
 function segment.fast_adjust()
@@ -201,12 +213,19 @@ function segment.fast_adjust()
     adj_elect[6] = adj_elect[6] + V2
     adj_elect[7] = adj_elect[7] + V3
     adj_elect[8] = adj_elect[8] + V4
-    adj_elect[9] = V5
+    --]]
+    -- [[
+    if ion_time_of_flight < t_pulse then
+        is_pulsed = false
+    else
+        adj_elect[9] = V_t
+        is_pulsed = true
+    end
     --]]
 end
 
 function segment.other_actions()
-    if HS1.segment.other_actions then
+    if HS1.segment.other_actions and ion_px_mm < focal_plane then
         HS1.segment.other_actions()
     end
     if WAVE_F.segment.other_actions then
@@ -234,15 +253,14 @@ function segment.terminate()
 end
 
 function segment.terminate_run()
-    if #splat_y >= 2 then -- at least 2 entries for calculating variances
-        local mean_y, var_y = Stat.array_mean_and_variance(splat_y)
-        local mean_z, var_z = Stat.array_mean_and_variance(splat_z)
-        local mean_tof, var_tof = Stat.array_mean_and_variance(splat_tof)
-        local mean_ke, var_ke = Stat.array_mean_and_variance(splat_ke)
-        if mode == "optimise" then
-            metric = math.sqrt((var_y+var_z)/2)
-            print("Objective function is " .. metric .. '.')
-        elseif mode == "record" then
+    if #focal_y >= 60 then -- at least 60 entries to get reliable variances
+        local mean_y, var_y = Stat.array_mean_and_variance(focal_y)
+        local mean_z, var_z = Stat.array_mean_and_variance(focal_z)
+        local mean_tof, var_tof = Stat.array_mean_and_variance(focal_tof)
+        local mean_ke, var_ke = Stat.array_mean_and_variance(focal_ke)
+        metric = math.sqrt((var_y+var_z)/2)
+        print("Objective function is " .. metric .. '.')
+        if mode == "record" then
             local str_r = string.format("<r> = %.3f%+.3fi mm, dr = %.3f mm", mean_y, mean_z, math.sqrt((var_y+var_z)/2)) 
             local str_tof = string.format("<tof> = %.3f micro-s, dtof = %.3f micro-s", mean_tof, math.sqrt(var_tof))
             local str_ke = string.format("<ke> = %.3f eV, dke = %.3f eV", mean_ke, math.sqrt(var_ke))
@@ -264,9 +282,9 @@ function segment.terminate_run()
         end
     end
     -- [[ reset arrays for the next run
-    splat_y = {}
-    splat_z = {}
-    splat_tof = {}
-    splat_ke = {}
+    focal_y = {}
+    focal_z = {}
+    focal_tof = {}
+    focal_ke = {}
     --]]
 end
