@@ -1,9 +1,15 @@
-;File: ion_guide_injection.ion
-;Author: X. Chen
-;Description: definition of individual ions for injection
-;License: GNU GPLv3
+####################################################################################################
+##########      File        :   ion_guide_injection.txt                                   ##########
+##########      Author      :   X. Chen                                                   ##########
+##########      Description :   definition of test paticles                               ##########
+##########      Note        :   the following lines follow SIMION .ion format, i.e.,      ##########
+##########                      on each line the comma separated values are               ##########
+##########                      tob, mass, charge, x, y, z, az, el, ke, cwf, color,       ##########
+##########                      where omitted parameters take default values              ##########
+##########      License     :   GNU GPLv3                                                 ##########
+####################################################################################################
 
-;0
+
 ,202.984,1,1e-7,-0.618237,0,0,-16.9337,2.60245,,
 ,202.984,1,1e-7,-0.615118,0,0,-16.8517,2.6035,,
 ,202.984,1,1e-7,-0.616323,0,0,-16.883,2.60308,,

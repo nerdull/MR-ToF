@@ -42,6 +42,8 @@
 --
 -- Author David Manura, 2005-06/2011
 -- (c) 2006-2011 Scientific Instrument Services, Inc. (Licensed under SIMION 8.0)
+--
+-- Updated by X. Chen on some fundamental constants
 simion.workbench_program()
 
 local HS1 = {}
@@ -53,10 +55,10 @@ HS1.segment = {}
 adjustable _mean_free_path_mm = -1
 
 -- Mass of background gas particle (amu)
-adjustable _gas_mass_amu = 4.00260325413 -- helium
+adjustable _gas_mass_amu = 4.0
 
 -- Background gas temperature (K)
-adjustable _temperature_k = 295.0
+adjustable _temperature_k = 273.0
 
 -- Background gas pressure (Pa)
 -- Note: (Pa/mtorr) = 0.13328.
@@ -121,11 +123,11 @@ local effective_mean_free_path_mm = -1
 local max_timestep
 
 -- Define constants
-local k = 1.3806505e-23       -- Boltzmann constant (J/K)
+local k = 1.380649e-23       -- Boltzmann constant (J/K)
 -- local R = 8.3145           -- Ideal gas constant (J/(mol*K))
-local kg_amu = 1.6605402e-27  -- (kg/amu) conversion factor
+local kg_amu = 1.6605390666e-27  -- (kg/amu) conversion factor
 local pi = math.pi            -- PI constant
-local eV_J = 6.2415095e+18    -- (eV/J) conversion factor
+local J_eV = 1.602176634e-19    -- (J/eV) conversion factor
 
 
 -- Error function (erf).
@@ -203,11 +205,11 @@ local function record_ke_other_actions()
     ke_averages[ion_number] = w * (ke_averages[ion_number] or ke2_ion)
                             + (1-w) * ke2_ion
     if _trace_level >= 2 then -- more detail
-        local T_ion = ke_averages[ion_number] / eV_J / (1.5 * k)
+        local T_ion = ke_averages[ion_number] * J_eV / (1.5 * k)
         if trace_count % _trace_skip == 0 then
             print(string.format(
-                "n=,%d,TOF=,%0.3g,ion KE (eV)=,%0.3e,ion mean KE (eV)=," ..
-                "%0.3e,ion mean temp (K)=,%0.3e",
+                "n=%d, TOF=%0.3g, ion KE (eV)=%0.3e, ion mean KE (eV)=" ..
+                "%0.3e, ion mean temp (K)=%0.3e",
                 ion_number, ion_time_of_flight, ke2_ion,
                 ke_averages[ion_number], T_ion))
         end
@@ -218,9 +220,9 @@ end
 local function record_ke_terminate()
     if _trace_level >= 1 and ke_averages[ion_number] then
         -- ion temperature
-        local T_ion = ke_averages[ion_number] / eV_J / (1.5 * k)
+        local T_ion = ke_averages[ion_number] * J_eV / (1.5 * k)
         print(string.format(
-            "n=,%d,TOF=,%0.3g,ion mean KE (eV)=,%0.3e,ion mean temp (K)=,%0.3e",
+            "n=%d, TOF=%0.3g, ion mean KE (eV)=%0.3e, ion mean temp (K)=%0.3e",
             ion_number, ion_time_of_flight, ke_averages[ion_number], T_ion))
     end
 end
@@ -234,26 +236,24 @@ local function init()
 end
 
 -- SIMION intiialize segment. Called on particle creation.
-function segment.initialize()
+function HS1.segment.initialize()
     if not is_initialized then init() end
 end
-HS1.segment.initialize = segment.initialize
 
 
 -- SIMION time step adjust segment. Adjusts time step sizes.
-function segment.tstep_adjust()
+function HS1.segment.tstep_adjust()
     -- Ensure time steps are sufficiently small.  They should be some
     -- fraction of mean-free-path so that collisions are not missed.
     if max_timestep and ion_time_step > max_timestep then
         ion_time_step = max_timestep
     end
 end
-HS1.segment.tstep_adjust = segment.tstep_adjust
 
 
 -- SIMION other actions segment. Called on every time step.
-function segment.other_actions()
-    if not is_initialized then init() end
+function HS1.segment.other_actions()
+    -- if not is_initialized then init() end
 
     -- Obtain pressure, temperature, and velocity at current "local"
     -- particle position.  Normally, these are obtained from the adjustable
@@ -511,16 +511,14 @@ function segment.other_actions()
         mark() -- draw dot at collision point
     end
 end
-HS1.segment.other_actions = segment.other_actions
 
 
 -- SIMION terminate segment. Called on particle termination.
-function segment.terminate()
+function HS1.segment.terminate()
     -- Display some statistics.
     -- Note: At equilibrium, the ion and gas KE become roughly equal.
     if trace_level ~= 0 then record_ke_terminate() end
 end
-HS1.segment.terminate = segment.terminate
 
 
 --OPTIONAL, for testing

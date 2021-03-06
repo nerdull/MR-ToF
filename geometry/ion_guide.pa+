@@ -1,0 +1,22 @@
+----------------------------------------------------------------------------------------------------
+----------      File        :   ion_guide.pa+                                             ----------
+----------      Author      :   X. Chen                                                   ----------
+----------      Description :   linear combination of electrodes in "ion_guide.gem"       ----------
+----------      License     :   GNU GPLv3                                                 ----------
+----------------------------------------------------------------------------------------------------
+
+local ring_num = _G.ion_guide.ring_num
+
+local electrocombo = {}
+
+-- vacuum pipe
+electrocombo[23] = { [1000] = 1 }
+
+-- ion guide
+local t = {}
+for i = 1,ring_num do
+    t[i] = (i%2 == 1) and 1 or -1
+end
+electrocombo[1] = t
+
+potential_array { scalable_electrodes = electrocombo }

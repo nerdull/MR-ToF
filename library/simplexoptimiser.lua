@@ -5,8 +5,10 @@
 -- version: 20080116
 -- (c) 2007 Scientific Instrument Services, Inc. (SIMION 8.0 License)
 --
--- Modified by X. Chen to improve the convergence rate in higher dimensions,
+-- Corrected by X. Chen to improve the convergence rate in higher dimensions,
 -- and more importantly, not to toss the minimum that is already found.
+-- Further improvements: optionally get the best values and restrict
+-- the trial values to be rounded to a given decimal place.
 
 local Sup = require "simionx.Support"
 local Type = require "simionx.Type"

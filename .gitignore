@@ -1,13 +1,10 @@
-# potential arrays
-*.pa#
-*.pa[0-9]*
-*.pa-surf
-
-# ion workbench
-*.iob
-
 # geometry
-*.processed.gem
+geometry/*.processed.gem
+
+# potential arrays
+geometry/*.pa#
+geometry/*.pa[0-9]*
+geometry/*.pa-surf
 
 # screenshots
 *.png
@@ -17,6 +14,3 @@
 # temporary files
 *.swp
 *.tmp
-
-# result files
-*.txt
