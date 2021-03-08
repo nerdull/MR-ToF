@@ -5,18 +5,29 @@
 ----------      License     :   GNU GPLv3                                                 ----------
 ----------------------------------------------------------------------------------------------------
 
-local ring_num = _G.ion_guide.ring_num
+local IG            =   _G.ion_guide
 
+local ring_number   =   IG.ring_number
+local ring_pa_num   =   IG.ring_pa_num
+local cap_pa_num    =   IG.cap_pa_num
+local pipe_pa_num   =   IG.pipe_pa_num
+local ground_pa_num =   IG.ground_pa_num
+
+-- electrode mapping table
 local electrocombo = {}
-
--- vacuum pipe
-electrocombo[23] = { [1000] = 1 }
 
 -- ion guide
 local t = {}
-for i = 1,ring_num do
+for i = 1,ring_number do
     t[i] = (i%2 == 1) and 1 or -1
 end
-electrocombo[1] = t
+electrocombo[ring_pa_num] = t
+
+-- caps and vacuum pipe
+electrocombo[ground_pa_num] = {
+    [cap_pa_num]        =   1;
+    [cap_pa_num + 1]    =   1;
+    [pipe_pa_num]       =   1;
+}
 
 potential_array { scalable_electrodes = electrocombo }

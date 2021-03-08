@@ -33,28 +33,38 @@ local HS1   =   simion.import "library/collision_hs1.lua"
 local object = "ion_guide"
 local shared_table = _G.ion_guide
 
--- define the dimensions of each component
+-- define the potential array number and dimensions of each component
 local var               =   {}
 
-var.ring_num            =   4*10
+var.ring_pa_num         =   1
+var.ring_number         =   10 * 4
 var.ring_pitch          =   5.8
 var.ring_thickness      =   3.4
 var.ring_inner_radius   =   5
-var.ring_outer_radius   =   10
+var.ring_outer_radius   =   var.ring_inner_radius * 2
 
+var.cap_pa_num          =   var.ring_number + 1
+var.cap_thickness       =   1
+var.cap_gap             =   1.6
+var.cap_inner_radius    =   4
+var.cap_outer_radius    =   var.ring_outer_radius
+
+var.pipe_pa_num         =   var.cap_pa_num + 2
 var.pipe_inner_radius   =   50
 var.pipe_thickness      =   2
+var.pipe_gap_left       =   5
+var.pipe_gap_right      =   20
 
-var.gap_left            =   5
-var.gap_right           =   10
+var.ground_pa_num       =   var.ring_pa_num + 1
 
-var.grid_size           =   2e-2
+var.grid_size           =   1e-1
 
 -- calculate the range for cropping potential array; values are in grid units
-local crop_axial_start  =   math.ceil(    var.pipe_thickness                                    / var.grid_size)
-local crop_axial_span   =   math.ceil((   var.ring_pitch*(var.ring_num-1) + var.ring_thickness
-                                        + var.gap_left + var.gap_right)                         / var.grid_size)
-local crop_radial_span  =   math.ceil(    var.ring_outer_radius                                 / var.grid_size)
+local crop_axial_start  =   math.ceil(     var.pipe_thickness                                   / var.grid_size )
+local crop_axial_span   =   math.ceil((    var.ring_pitch * (var.ring_number-1) + var.ring_thickness
+                                        + (var.cap_gap + var.cap_thickness) * 2
+                                        +  var.pipe_gap_left + var.pipe_gap_right )             / var.grid_size )
+local crop_radial_span  =   math.ceil(     var.ring_outer_radius                                / var.grid_size )
 
 local crop_range        =   { crop_axial_start, 0, 0; crop_axial_span, crop_radial_span, 0 }
 
@@ -63,13 +73,13 @@ local bound_axial_span  =   crop_axial_span  * var.grid_size
 local bound_radial_span =   crop_radial_span * var.grid_size
 
 local workbench_bounds  =   {
-                    xl  =   0                ,  xr  =   bound_axial_span ;
-                    yl  =  -bound_radial_span,  yr  =   bound_radial_span;
-                    zl  =  -bound_radial_span,  zr  =   bound_radial_span;
+    xl  =   0                ,  xr  =   bound_axial_span ;
+    yl  =  -bound_radial_span,  yr  =   bound_radial_span;
+    zl  =  -bound_radial_span,  zr  =   bound_radial_span;
 }
 
 -- build the potential array from .gem file, then refine and crop it
-local function generate_potential_array(fname, conv, force)
+local function generate_potential_array(fname, force, conv)
     local need_rebuild = false
     if force or next(shared_table) == nil then need_rebuild = true else
         for k,v in pairs(var) do
@@ -176,6 +186,40 @@ adjustable _mark_collisions =   0               -- don't place a red dot on each
 -- freeze the random state for reproducible simulation results, set 0 to thaw
 local random_seed = 1
 
+-- round the number to a given decimal place
+local function round(x, decimal)
+    return tonumber((("%%.%df"):format(decimal or 0)):format(x))
+end
+
+-- get ion's equilibrium position by means of exponetial moving average
+-- return true if the ion reaches its equilibrium
+local ion_px_average        =   {}
+local ion_px_equilibrium    =   {}
+local ion_px_check_time     =   {}
+
+local function get_ion_px_equilibrium()
+    local average_time      =   100 / confining_frequency
+    local average_factor    =   ion_time_step / average_time
+    local revisit_interval  =   average_time
+
+    ion_px_average[ion_number] =        average_factor  *  ion_px_mm
+                                 + (1 - average_factor) * (ion_px_average[ion_number] or ion_px_mm)
+
+    if not ion_px_check_time[ion_number] then
+        ion_px_check_time[ion_number]   =   0
+        ion_px_equilibrium[ion_number]  =   round(ion_px_average[ion_number], 1)
+    end
+
+    if ion_time_of_flight - ion_px_check_time[ion_number] > revisit_interval then
+        ion_px_check_time[ion_number] = ion_time_of_flight
+        if ion_px_equilibrium[ion_number] == round(ion_px_average[ion_number], 1) then
+            return true
+        else
+            ion_px_equilibrium[ion_number] = round(ion_px_average[ion_number], 1)
+        end
+    end
+end
+
 
 ----------------------------------------------------------------------------------------------------
 ----------                                  Fly particles                                 ----------
@@ -193,8 +237,7 @@ function segment.flym()
 end
 
 function segment.init_p_values()
-    -- the potential of the vacuum pipe is always at the ground level
-    simion.wb.instances[1].pa:fast_adjust { [23] = 0 }
+    simion.wb.instances[1].pa:fast_adjust { [var.ground_pa_num] = 0 }
     generate_square_wave_rf(confining_frequency, confining_voltage)
 end
 
@@ -213,6 +256,7 @@ end
 
 function segment.other_actions()
     HS1.segment.other_actions()
+    if get_ion_px_equilibrium() then ion_splat = 1 end
 end
 
 function segment.terminate()

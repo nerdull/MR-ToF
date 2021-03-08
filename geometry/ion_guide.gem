@@ -9,30 +9,38 @@
 
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;;;;;;;;;;                              Calculate parameters                              ;;;;;;;;;;
+;;;;;;;;;;                        Import and calculate parameters                         ;;;;;;;;;;
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 $(
-local IG                =   _G.ion_guide
+local IG                    =   _G.ion_guide
 
-local ring_num          =   IG.ring_num
-local ring_pitch        =   IG.ring_pitch
-local ring_thickness    =   IG.ring_thickness
-local ring_inner_radius =   IG.ring_inner_radius
-local ring_outer_radius =   IG.ring_outer_radius
+local ring_number           =   IG.ring_number
+local ring_pitch            =   IG.ring_pitch
+local ring_thickness        =   IG.ring_thickness
+local ring_inner_radius     =   IG.ring_inner_radius
+local ring_outer_radius     =   IG.ring_outer_radius
 
-local pipe_inner_radius =   IG.pipe_inner_radius
-local pipe_thickness    =   IG.pipe_thickness
+local cap_pa_num            =   IG.cap_pa_num
+local cap_thickness         =   IG.cap_thickness
+local cap_gap               =   IG.cap_gap
+local cap_inner_radius      =   IG.cap_inner_radius
+local cap_outer_radius      =   IG.cap_outer_radius
 
-local gap_left          =   IG.gap_left
-local gap_right         =   IG.gap_right
+local pipe_pa_num           =   IG.pipe_pa_num
+local pipe_inner_radius     =   IG.pipe_inner_radius
+local pipe_thickness        =   IG.pipe_thickness
+local pipe_gap_left         =   IG.pipe_gap_left
+local pipe_gap_right        =   IG.pipe_gap_right
 
-local grid_size         =   IG.grid_size
+local grid_size             =   IG.grid_size
 )
 
 $(
-local first_ring_start  =   pipe_thickness + gap_left
-local total_length      =   first_ring_start + ring_pitch*(ring_num-1) + ring_thickness + gap_right + pipe_thickness
+local left_cap_start    =   pipe_thickness + pipe_gap_left
+local first_ring_start  =   left_cap_start + cap_thickness + cap_gap
+local right_cap_start   =   first_ring_start + ring_pitch * (ring_number-1) + ring_thickness + cap_gap
+local total_length      =   right_cap_start + cap_thickness + pipe_gap_right + pipe_thickness
 
 local grid_num_axial    =   math.ceil( total_length                        / grid_size) + 1
 local grid_num_radial   =   math.ceil((pipe_inner_radius + pipe_thickness) / grid_size) + 1
@@ -45,19 +53,32 @@ local grid_num_radial   =   math.ceil((pipe_inner_radius + pipe_thickness) / gri
 
 pa_define($(grid_num_axial), $(grid_num_radial), 1, cylindrical, y, electrostatic,, $(grid_size), surface=fractional)
 
-; vacuum pipe
-electrode(1000) {
-    fill {  within { box( 0, 0, $(pipe_thickness), $(pipe_inner_radius + pipe_thickness) ) }
-            within { box( 0, $(pipe_inner_radius), $(total_length), $(pipe_inner_radius + pipe_thickness) ) }
-            within { box( $(total_length - pipe_thickness), 0, $(total_length), $(pipe_inner_radius + pipe_thickness) ) }
-    }
-}
-
 ; ion guide
-# for i = 1,ring_num do
-electrode( $(i) ) { locate( $(first_ring_start + ring_pitch*(i-1)), $(ring_inner_radius) ) {
+# for i = 1,ring_number do
+electrode( $(i) ) { locate( $(first_ring_start + ring_pitch * (i-1)), $(ring_inner_radius) ) {
     fill {  within { box( 0, $(ring_thickness/2), $(ring_thickness), $(ring_outer_radius - ring_inner_radius) ) }
             within { circle( $(ring_thickness/2), $(ring_thickness/2), $(ring_thickness/2) ) }
     }
 }}
 # end
+
+; caps
+electrode( $(cap_pa_num) ) { locate( $(left_cap_start), $(cap_inner_radius) ) {
+    fill {  within { box( 0, $(cap_thickness/2), $(cap_thickness), $(cap_outer_radius - cap_inner_radius) ) }
+            within { circle( $(cap_thickness/2), $(cap_thickness/2), $(cap_thickness/2) ) }
+    }
+}}
+
+electrode( $(cap_pa_num + 1) ) { locate( $(right_cap_start), $(cap_inner_radius) ) {
+    fill {  within { box( 0, $(cap_thickness/2), $(cap_thickness), $(cap_outer_radius - cap_inner_radius) ) }
+            within { circle( $(cap_thickness/2), $(cap_thickness/2), $(cap_thickness/2) ) }
+    }
+}}
+
+; vacuum pipe
+electrode( $(pipe_pa_num) ) {
+    fill {  within { box( 0, 0, $(pipe_thickness), $(pipe_inner_radius + pipe_thickness) ) }
+            within { box( 0, $(pipe_inner_radius), $(total_length), $(pipe_inner_radius + pipe_thickness) ) }
+            within { box( $(total_length - pipe_thickness), 0, $(total_length), $(pipe_inner_radius + pipe_thickness) ) }
+    }
+}
