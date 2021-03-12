@@ -13,37 +13,54 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 $(
-local IG                    =   _G.ion_guide
+local IG                        =   _G.shared_table
 
-local ring_number           =   IG.ring_number
-local ring_pitch            =   IG.ring_pitch
-local ring_thickness        =   IG.ring_thickness
-local ring_inner_radius     =   IG.ring_inner_radius
-local ring_outer_radius     =   IG.ring_outer_radius
+local ring_big_pa_num           =   IG.ring_big_pa_num
+local ring_big_inner_radius     =   IG.ring_big_inner_radius
+local ring_big_number           =   IG.ring_big_number
 
-local cap_pa_num            =   IG.cap_pa_num
-local cap_thickness         =   IG.cap_thickness
-local cap_gap               =   IG.cap_gap
-local cap_inner_radius      =   IG.cap_inner_radius
-local cap_outer_radius      =   IG.cap_outer_radius
+local ring_small_pa_num         =   IG.ring_small_pa_num
+local ring_small_inner_radius   =   IG.ring_small_inner_radius
+local ring_small_number         =   IG.ring_small_number
 
-local pipe_pa_num           =   IG.pipe_pa_num
-local pipe_inner_radius     =   IG.pipe_inner_radius
-local pipe_thickness        =   IG.pipe_thickness
-local pipe_gap_left         =   IG.pipe_gap_left
-local pipe_gap_right        =   IG.pipe_gap_right
+local ring_taper_pa_num         =   IG.ring_taper_pa_num
+-- local ring_taper_inner_radii    =   { 3.75, 3.75, 3, 3, 2.75, 2.75, 2.5, 2.5, 2.25, 2.25, 2.25, 2.25 }
+local ring_taper_gradient       =   IG.ring_taper_gradient
+local ring_taper_step           =   IG.ring_taper_step
+local ring_taper_repetition     =   IG.ring_taper_repetition
+local ring_taper_number         =   IG.ring_taper_number
+-- local ring_test                 =   IG.ring_test
 
-local grid_size             =   IG.grid_size
+local ring_pitch                =   IG.ring_pitch
+local ring_thickness            =   IG.ring_thickness
+local ring_outer_radius         =   IG.ring_outer_radius
+
+local cap_pa_num                =   IG.cap_pa_num
+local cap_thickness             =   IG.cap_thickness
+local cap_gap                   =   IG.cap_gap
+local cap_left_inner_radius     =   IG.cap_left_inner_radius
+local cap_right_inner_radius    =   IG.cap_right_inner_radius
+local cap_outer_radius          =   IG.cap_outer_radius
+
+local pipe_pa_num               =   IG.pipe_pa_num
+local pipe_inner_radius         =   IG.pipe_inner_radius
+local pipe_thickness            =   IG.pipe_thickness
+local pipe_left_gap             =   IG.pipe_left_gap
+local pipe_right_gap            =   IG.pipe_right_gap
+
+local grid_size                 =   IG.grid_size
 )
 
 $(
-local left_cap_start    =   pipe_thickness + pipe_gap_left
-local first_ring_start  =   left_cap_start + cap_thickness + cap_gap
-local right_cap_start   =   first_ring_start + ring_pitch * (ring_number-1) + ring_thickness + cap_gap
-local total_length      =   right_cap_start + cap_thickness + pipe_gap_right + pipe_thickness
+local cap_left_start    =   pipe_thickness + pipe_left_gap
+local ring_big_start    =   cap_left_start + cap_thickness + cap_gap
+local ring_taper_start  =   ring_big_start + ring_pitch * ring_big_number
+local ring_small_start  =   ring_taper_start + ring_pitch * ring_taper_number
+local cap_right_start   =   ring_small_start + ring_pitch * (ring_small_number - 1) + ring_thickness + cap_gap
+local total_length      =   cap_right_start + cap_thickness + pipe_right_gap + pipe_thickness
 
-local grid_num_axial    =   math.ceil( total_length                        / grid_size) + 1
-local grid_num_radial   =   math.ceil((pipe_inner_radius + pipe_thickness) / grid_size) + 1
+local grid_axial_num    =   math.ceil( total_length                        / grid_size) + 1
+local grid_radial_num   =   math.ceil((pipe_inner_radius + pipe_thickness) / grid_size) + 1
 )
 
 
@@ -51,27 +68,46 @@ local grid_num_radial   =   math.ceil((pipe_inner_radius + pipe_thickness) / gri
 ;;;;;;;;;;                             Define potential array                             ;;;;;;;;;;
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-pa_define($(grid_num_axial), $(grid_num_radial), 1, cylindrical, y, electrostatic,, $(grid_size), surface=fractional)
+pa_define($(grid_axial_num), $(grid_radial_num), 1, cylindrical, y, electrostatic,, $(grid_size), surface=fractional)
 
-; ion guide
-# for i = 1,ring_number do
-electrode( $(i) ) { locate( $(first_ring_start + ring_pitch * (i-1)), $(ring_inner_radius) ) {
-    fill {  within { box( 0, $(ring_thickness/2), $(ring_thickness), $(ring_outer_radius - ring_inner_radius) ) }
-            within { circle( $(ring_thickness/2), $(ring_thickness/2), $(ring_thickness/2) ) }
+; stacked rings
+# for i = 0, ring_big_number - 1 do
+electrode( $(ring_big_pa_num + i) ) { locate( $(ring_big_start + ring_pitch * i), $(ring_big_inner_radius) ) {
+    fill {  within { box( 0, $(ring_thickness / 2), $(ring_thickness), $(ring_outer_radius - ring_big_inner_radius) ) }
+            within { circle( $(ring_thickness / 2), $(ring_thickness / 2), $(ring_thickness / 2) ) }
     }
 }}
 # end
 
+# for i = 0, ring_small_number - 1 do
+electrode( $(ring_small_pa_num + i) ) { locate( $(ring_small_start + ring_pitch * i), $(ring_small_inner_radius) ) {
+    fill {  within { box( 0, $(ring_thickness / 2), $(ring_thickness), $(ring_outer_radius - ring_small_inner_radius) ) }
+            within { circle( $(ring_thickness / 2), $(ring_thickness / 2), $(ring_thickness / 2) ) }
+    }
+}}
+# end
+
+# for i = 0, ring_taper_step - 1 do
+# for j = 0, ring_taper_repetition - 1 do
+electrode( $(ring_taper_pa_num + ring_taper_repetition * i + j) ) {
+    locate( $(ring_taper_start + ring_pitch * (ring_taper_repetition * i + j)), $(ring_big_inner_radius - ring_taper_gradient * (i + 1)) ) {
+        fill {  within { box( 0, $(ring_thickness / 2), $(ring_thickness), $(ring_outer_radius - ring_big_inner_radius + ring_taper_gradient * (i + 1)) ) }
+                within { circle( $(ring_thickness / 2), $(ring_thickness / 2), $(ring_thickness / 2) ) }
+        }
+    }
+}
+# end end
+
 ; caps
-electrode( $(cap_pa_num) ) { locate( $(left_cap_start), $(cap_inner_radius) ) {
-    fill {  within { box( 0, $(cap_thickness/2), $(cap_thickness), $(cap_outer_radius - cap_inner_radius) ) }
-            within { circle( $(cap_thickness/2), $(cap_thickness/2), $(cap_thickness/2) ) }
+electrode( $(cap_pa_num) ) { locate( $(cap_left_start), $(cap_left_inner_radius) ) {
+    fill {  within { box( 0, $(cap_thickness / 2), $(cap_thickness), $(cap_outer_radius - cap_left_inner_radius) ) }
+            within { circle( $(cap_thickness / 2), $(cap_thickness / 2), $(cap_thickness / 2) ) }
     }
 }}
 
-electrode( $(cap_pa_num + 1) ) { locate( $(right_cap_start), $(cap_inner_radius) ) {
-    fill {  within { box( 0, $(cap_thickness/2), $(cap_thickness), $(cap_outer_radius - cap_inner_radius) ) }
-            within { circle( $(cap_thickness/2), $(cap_thickness/2), $(cap_thickness/2) ) }
+electrode( $(cap_pa_num + 1) ) { locate( $(cap_right_start), $(cap_right_inner_radius) ) {
+    fill {  within { box( 0, $(cap_thickness / 2), $(cap_thickness), $(cap_outer_radius - cap_right_inner_radius) ) }
+            within { circle( $(cap_thickness / 2), $(cap_thickness / 2), $(cap_thickness / 2) ) }
     }
 }}
 

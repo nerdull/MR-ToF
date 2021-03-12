@@ -19,11 +19,13 @@
 simion.workbench_program()
 
 -- global tables to be shared across files
-_G.ion_guide = _G.ion_guide or {}
+-- _G.shared_table = _G.shared_table or {}
 
 -- dependent libraries
-local WAVE  =   simion.import "library/waveformlib.lua"
+local WAV_C =   simion.import "library/waveformlib.lua"
+local WAV_T =   simion.import "library/waveformlib.lua"
 local HS1   =   simion.import "library/collision_hs1.lua"
+
 
 ----------------------------------------------------------------------------------------------------
 ----------                                   Preparation                                  ----------
@@ -31,40 +33,57 @@ local HS1   =   simion.import "library/collision_hs1.lua"
 
 -- specify the simulating object
 local object = "ion_guide"
-local shared_table = _G.ion_guide
 
 -- define the potential array number and dimensions of each component
-local var               =   {}
+local var                   =   {}
 
-var.ring_pa_num         =   1
-var.ring_number         =   10 * 4
-var.ring_pitch          =   5.8
-var.ring_thickness      =   3.4
-var.ring_inner_radius   =   5
-var.ring_outer_radius   =   var.ring_inner_radius * 2
+var.ring_big_pa_num         =   1
+var.ring_big_inner_radius   =   5
+var.ring_big_number         =   1 * 4
 
-var.cap_pa_num          =   var.ring_number + 1
-var.cap_thickness       =   1
-var.cap_gap             =   1.6
-var.cap_inner_radius    =   4
-var.cap_outer_radius    =   var.ring_outer_radius
+var.ring_small_pa_num       =   var.ring_big_pa_num + var.ring_big_number
+var.ring_small_inner_radius =   2
+var.ring_small_number       =   1 * 4
 
-var.pipe_pa_num         =   var.cap_pa_num + 2
-var.pipe_inner_radius   =   50
-var.pipe_thickness      =   2
-var.pipe_gap_left       =   5
-var.pipe_gap_right      =   20
+var.ring_taper_pa_num       =   var.ring_small_pa_num + var.ring_small_number
+var.ring_taper_gradient     =   .25
+var.ring_taper_step         =   (var.ring_big_inner_radius - var.ring_small_inner_radius) / var.ring_taper_gradient - 1
+var.ring_taper_repetition   =   4
+var.ring_taper_number       =   var.ring_taper_step * var.ring_taper_repetition
+-- var.ring_taper_number       =   12
+-- var.ring_test               = {1,4,9}
 
-var.ground_pa_num       =   var.ring_pa_num + 1
+var.ring_pa_num             =   var.ring_big_pa_num
+var.ring_pitch              =   2.5
+var.ring_thickness          =   1.5
+var.ring_outer_radius       =   10
+var.ring_number             =   var.ring_big_number + var.ring_small_number + var.ring_taper_number
 
-var.grid_size           =   1e-1
+var.cap_pa_num              =   var.ring_pa_num + var.ring_number
+var.cap_thickness           =   1
+var.cap_gap                 =   1
+var.cap_left_inner_radius   =   var.ring_big_inner_radius
+var.cap_right_inner_radius  =   var.ring_small_inner_radius
+var.cap_outer_radius        =   var.ring_outer_radius
+
+var.pipe_pa_num             =   var.cap_pa_num + 2
+var.pipe_inner_radius       =   50
+var.pipe_thickness          =   2
+var.pipe_left_gap           =   5
+var.pipe_right_gap          =   10
+
+var.confine_rf_pa_num       =   1
+var.travel_wave_pa_num      =   var.confine_rf_pa_num + 1
+var.travel_wave_length      =   4
+var.ground_pa_num           =   var.travel_wave_pa_num + var.travel_wave_length
+
+var.grid_size               =   5e-2
 
 -- calculate the range for cropping potential array; values are in grid units
-local crop_axial_start  =   math.ceil(     var.pipe_thickness                                   / var.grid_size )
-local crop_axial_span   =   math.ceil((    var.ring_pitch * (var.ring_number-1) + var.ring_thickness
-                                        + (var.cap_gap + var.cap_thickness) * 2
-                                        +  var.pipe_gap_left + var.pipe_gap_right )             / var.grid_size )
-local crop_radial_span  =   math.ceil(     var.ring_outer_radius                                / var.grid_size )
+local crop_axial_start  =   math.ceil(    var.pipe_thickness                                            / var.grid_size )
+local crop_axial_span   =   math.ceil((   var.ring_pitch * (var.ring_number - 1) + var.ring_thickness
+                                        + (var.cap_gap + var.cap_thickness) * 2 + var.pipe_left_gap )   / var.grid_size )
+local crop_radial_span  =   math.ceil(    var.ring_outer_radius                                         / var.grid_size )
 
 local crop_range        =   { crop_axial_start, 0, 0; crop_axial_span, crop_radial_span, 0 }
 
@@ -78,17 +97,39 @@ local workbench_bounds  =   {
     zl  =  -bound_radial_span,  zr  =   bound_radial_span;
 }
 
+-- recursively compare whether the contents of two tables are identical
+local function deep_compare(obj_1, obj_2)
+    local type_1, type_2 = type(obj_1), type(obj_2)
+    if type_1 ~= type_2 then return false end
+    if type_1 ~= "table" then return obj_1 == obj_2 end
+    if not deep_compare( getmetatable(obj_1), getmetatable(obj_2) ) then return false end
+    for key_1, value_1 in next, obj_1, nil do
+        local value_2 = obj_2[key_1]
+        if value_2 == nil or not deep_compare(value_1, value_2) then return false end
+    end
+    return true
+end
+
+-- recursively copy the contents in a table
+local function deep_copy(original)
+    local copy
+    if type(original) == "table" then
+        copy = {}
+        for original_key, original_value in next, original, nil do
+            copy[ deep_copy(original_key) ] = deep_copy(original_value)
+        end
+        setmetatable( copy, deep_copy(getmetatable(original)) )
+    else
+        copy = original
+    end
+    return copy
+end
+
 -- build the potential array from .gem file, then refine and crop it
 local function generate_potential_array(fname, force, conv)
-    local need_rebuild = false
-    if force or next(shared_table) == nil then need_rebuild = true else
-        for k,v in pairs(var) do
-            if shared_table[k] ~= v then need_rebuild = true; break end
-        end
-    end
-    if not need_rebuild then return end
+    if not force and deep_compare(_G.shared_table, var) then return end
+    _G.shared_table = deep_copy(var)
 
-    for k,v in pairs(var) do shared_table[k] = v end
     local gem_file = "geometry/"..fname..".gem"
     local pa_file  = "geometry/"..fname..".pa#"
     simion.command( "gem2pa "..gem_file..' '..pa_file )
@@ -141,7 +182,7 @@ end
 -- define test particles in .fly2 format
 local function generate_particles(obj)
     local key
-    for k,v in pairs(debug.getregistry()) do
+    for k, v in next, debug.getregistry(), nil do
         if type(v) == "table" and v.iterator then key = k; break end
     end
 
@@ -151,28 +192,53 @@ local function generate_particles(obj)
             coordinates = 0;
             simion.fly2.standard_beam(obj);
         }
-    elseif type(obj) == "string" then fly2 = ion_to_fly2(obj) end
+    elseif type(obj) == "string" then
+        fly2 = ion_to_fly2(obj)
+    end
 
     debug.getregistry()[key] = fly2
 end
 
 -- define RF parameters for radial confinement
-local confining_frequency   =   1.25
-local confining_voltage     =   69
+local confine_frequency   =   2.9
+local confine_voltage     =   59
 
 -- generate the confining square-wave RF
-local function generate_square_wave_rf(freq, amp)
-    local wav = WAVE.waveforms {
-        WAVE.electrode(1) { WAVE.lines {
+local function generate_confine_rf(freq, amp)
+    local wav = WAV_C.waveforms {
+        WAV_C.electrode(var.confine_rf_pa_num) { WAV_C.lines {
             { time  =   0           ,   potential   =   amp };
             { time  =   1/freq * 1/2,   potential   =   amp };
             { time  =   1/freq * 1/2,   potential   =  -amp };
             { time  =   1/freq      ,   potential   =  -amp };
         }};
     }
-    WAVE.install {
+    WAV_C.install {
         waves       =   wav;
         frequency   =   freq;
+    }
+end
+
+-- define travelling wave parameters for axial transport
+local lifting_duration  =   1e3
+local lifting_voltage   =   2.7
+
+-- generate the travelling square wave
+local function generate_travel_wave(t, amp)
+    local wav = {}
+    for i = 0, var.travel_wave_length - 1 do
+        wav[#wav+1] = WAV_T.electrode(var.travel_wave_pa_num + i) { WAV_T.lines {
+            { time  =   0                         , potential   =   0   };
+            { time  =   t *  i                    , potential   =   0   };
+            { time  =   t *  i                    , potential   =   amp };
+            { time  =   t * (i + 1)               , potential   =   amp };
+            { time  =   t * (i + 1)               , potential   =   0   };
+            { time  =   t * var.travel_wave_length, potential   =   0   };
+        }}
+    end
+    WAV_T.install {
+        waves       =   WAV_T.waveforms(wav);
+        frequency   =   1/t * 1/4;
     }
 end
 
@@ -180,43 +246,36 @@ end
 adjustable _gas_mass_amu    =   4.00260325413   -- helium
 adjustable _temperature_k   =   295             -- room temperature
 adjustable _pressure_pa     =   1e-1            -- set 0 to disable buffer gas
-adjustable _trace_level     =   0               -- don't keep an eye on ion's kinetic energy
+adjustable _trace_level     =   2               -- don't keep an eye on ion's kinetic energy
 adjustable _mark_collisions =   0               -- don't place a red dot on each collision
 
 -- freeze the random state for reproducible simulation results, set 0 to thaw
 local random_seed = 1
 
--- round the number to a given decimal place
+-- round off the number to a given decimal place
 local function round(x, decimal)
-    return tonumber((("%%.%df"):format(decimal or 0)):format(x))
+    return tonumber(("%%.%df"):format(decimal or 0):format(x))
 end
 
 -- get ion's equilibrium position by means of exponetial moving average
--- return true if the ion reaches its equilibrium
 local ion_px_average        =   {}
 local ion_px_equilibrium    =   {}
 local ion_px_check_time     =   {}
+local average_time          =   100 / confine_frequency
+local revisit_interval      =   average_time
 
+-- return true if the ion reaches its equilibrium
 local function get_ion_px_equilibrium()
-    local average_time      =   100 / confining_frequency
-    local average_factor    =   ion_time_step / average_time
-    local revisit_interval  =   average_time
+    local average_factor        =   ion_time_step / average_time
+    ion_px_average[ion_number]  =   average_factor * ion_px_mm + (1 - average_factor) * (ion_px_average[ion_number] or ion_px_mm)
+    if ion_time_of_flight - (ion_px_check_time[ion_number] or 0) < revisit_interval then return end
 
-    ion_px_average[ion_number] =        average_factor  *  ion_px_mm
-                                 + (1 - average_factor) * (ion_px_average[ion_number] or ion_px_mm)
-
-    if not ion_px_check_time[ion_number] then
-        ion_px_check_time[ion_number]   =   0
-        ion_px_equilibrium[ion_number]  =   round(ion_px_average[ion_number], 1)
-    end
-
-    if ion_time_of_flight - ion_px_check_time[ion_number] > revisit_interval then
-        ion_px_check_time[ion_number] = ion_time_of_flight
-        if ion_px_equilibrium[ion_number] == round(ion_px_average[ion_number], 1) then
-            return true
-        else
-            ion_px_equilibrium[ion_number] = round(ion_px_average[ion_number], 1)
-        end
+    local ion_px_average_round = round(ion_px_average[ion_number], 1)
+    if ion_px_equilibrium[ion_number] ~= ion_px_average_round then
+        ion_px_equilibrium[ion_number] = ion_px_average_round
+        ion_px_check_time[ion_number]  = ion_time_of_flight
+    else
+        return true
     end
 end
 
@@ -238,7 +297,8 @@ end
 
 function segment.init_p_values()
     simion.wb.instances[1].pa:fast_adjust { [var.ground_pa_num] = 0 }
-    generate_square_wave_rf(confining_frequency, confining_voltage)
+    generate_confine_rf(confine_frequency, confine_voltage)
+    generate_travel_wave(lifting_duration, lifting_voltage)
 end
 
 function segment.initialize_run()
@@ -246,12 +306,14 @@ function segment.initialize_run()
 end
 
 function segment.tstep_adjust()
-    WAVE.segment.tstep_adjust()
+    WAV_C.segment.tstep_adjust()
+    WAV_T.segment.tstep_adjust()
     HS1.segment.tstep_adjust()
 end
 
 function segment.fast_adjust()
-    WAVE.segment.fast_adjust()
+    WAV_C.segment.fast_adjust()
+    WAV_T.segment.fast_adjust()
 end
 
 function segment.other_actions()

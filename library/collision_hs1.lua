@@ -74,7 +74,7 @@ adjustable _pressure_pa = 0.53
 --   i.e. 2.46e-19 collision cross-section)
 -- (2.27E-18 is for collision between He and some 200 amu ion with combined
 --  collision diameter of 2 + 15 angstroms.  It is used in some benchmarks.)
-adjustable _sigma_m2 = 2.27E-18 
+adjustable _sigma_m2 = 2.27E-18
 
 -- Mean background gas velocity (mm/usec) in x,y,z directions.
 -- Normally, these are zero.
@@ -208,9 +208,9 @@ local function record_ke_other_actions()
         local T_ion = ke_averages[ion_number] * J_eV / (1.5 * k)
         if trace_count % _trace_skip == 0 then
             print(string.format(
-                "n=%d, TOF=%0.3g, ion KE (eV)=%0.3e, ion mean KE (eV)=" ..
-                "%0.3e, ion mean temp (K)=%0.3e",
-                ion_number, ion_time_of_flight, ke2_ion,
+                "n=%d, TOF (ms)=%0.3f, ion KE (eV)=%0.3g, ion mean KE (eV)=" ..
+                "%0.3g, ion mean temp (K)=%0.3g",
+                ion_number, ion_time_of_flight/1e3, ke2_ion,
                 ke_averages[ion_number], T_ion))
         end
         trace_count = (trace_count + 1) % _trace_skip
@@ -222,15 +222,15 @@ local function record_ke_terminate()
         -- ion temperature
         local T_ion = ke_averages[ion_number] * J_eV / (1.5 * k)
         print(string.format(
-            "n=%d, TOF=%0.3g, ion mean KE (eV)=%0.3e, ion mean temp (K)=%0.3e",
-            ion_number, ion_time_of_flight, ke_averages[ion_number], T_ion))
+            "n=%d, TOF (ms)=%0.3f, ion mean KE (eV)=%0.3g, ion mean temp (K)=%0.3g",
+            ion_number, ion_time_of_flight/1e3, ke_averages[ion_number], T_ion))
     end
 end
 
 local is_initialized = false
 local function init()
     if _random_seed ~= 0 then seed(_random_seed-1) end
-    
+
     if HS1.init then HS1.init() end
     is_initialized = true
 end

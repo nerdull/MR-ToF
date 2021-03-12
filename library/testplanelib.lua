@@ -149,7 +149,7 @@ local function create(p0_x,p0_y,p0_z, pn_x,pn_y,pn_z, action)
       if hs == 'hitted' and dt < m then  -- already hit
         -- do nothing
       elseif dt <= 0 or hs == 'willhit' then  -- hitting
-        hit_state[ion_number] = 'hitting'          
+        hit_state[ion_number] = 'hitting'
 
         -- Set time-step to 0 when hitting to avoid confusion over
         -- whether variables represent the beginning or end of a

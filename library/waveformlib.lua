@@ -276,7 +276,7 @@ function WAVE.lines(t)
       error(message, 2)
     end
   end
- 
+
   return {'lines', t}
 end
 

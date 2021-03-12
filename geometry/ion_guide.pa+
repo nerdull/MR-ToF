@@ -5,23 +5,35 @@
 ----------      License     :   GNU GPLv3                                                 ----------
 ----------------------------------------------------------------------------------------------------
 
-local IG            =   _G.ion_guide
+local IG                    =   _G.shared_table
 
-local ring_number   =   IG.ring_number
-local ring_pa_num   =   IG.ring_pa_num
-local cap_pa_num    =   IG.cap_pa_num
-local pipe_pa_num   =   IG.pipe_pa_num
-local ground_pa_num =   IG.ground_pa_num
+local ring_pa_num           =   IG.ring_pa_num
+local ring_number           =   IG.ring_number
+local cap_pa_num            =   IG.cap_pa_num
+local pipe_pa_num           =   IG.pipe_pa_num
+
+local confine_rf_pa_num     =   IG.confine_rf_pa_num
+local travel_wave_pa_num    =   IG.travel_wave_pa_num
+local travel_wave_length    =   IG.travel_wave_length
+local ground_pa_num         =   IG.ground_pa_num
 
 -- electrode mapping table
 local electrocombo = {}
 
--- ion guide
-local t = {}
-for i = 1,ring_number do
-    t[i] = (i%2 == 1) and 1 or -1
+-- stacked rings
+local confine_rf = {}
+for i = 0, ring_number - 1 do
+    confine_rf[ring_pa_num + i] = (i%2 == 0) and 1 or -1
 end
-electrocombo[ring_pa_num] = t
+electrocombo[confine_rf_pa_num] = confine_rf
+
+for i = 0, travel_wave_length - 1 do
+    local travel_wave = {}
+    for j = i, ring_number - 1, travel_wave_length do
+        travel_wave[ring_pa_num + j] = 1
+    end
+    electrocombo[travel_wave_pa_num + i] = travel_wave
+end
 
 -- caps and vacuum pipe
 electrocombo[ground_pa_num] = {
