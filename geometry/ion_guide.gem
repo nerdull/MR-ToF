@@ -24,12 +24,10 @@ local ring_small_inner_radius   =   IG.ring_small_inner_radius
 local ring_small_number         =   IG.ring_small_number
 
 local ring_taper_pa_num         =   IG.ring_taper_pa_num
--- local ring_taper_inner_radii    =   { 3.75, 3.75, 3, 3, 2.75, 2.75, 2.5, 2.5, 2.25, 2.25, 2.25, 2.25 }
 local ring_taper_gradient       =   IG.ring_taper_gradient
 local ring_taper_step           =   IG.ring_taper_step
 local ring_taper_repetition     =   IG.ring_taper_repetition
 local ring_taper_number         =   IG.ring_taper_number
--- local ring_test                 =   IG.ring_test
 
 local ring_pitch                =   IG.ring_pitch
 local ring_thickness            =   IG.ring_thickness

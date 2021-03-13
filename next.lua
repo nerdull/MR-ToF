@@ -18,9 +18,6 @@
 
 simion.workbench_program()
 
--- global tables to be shared across files
--- _G.shared_table = _G.shared_table or {}
-
 -- dependent libraries
 local WAV_C =   simion.import "library/waveformlib.lua"
 local WAV_T =   simion.import "library/waveformlib.lua"
@@ -39,19 +36,17 @@ local var                   =   {}
 
 var.ring_big_pa_num         =   1
 var.ring_big_inner_radius   =   5
-var.ring_big_number         =   1 * 4
+var.ring_big_number         =   4
 
 var.ring_small_pa_num       =   var.ring_big_pa_num + var.ring_big_number
 var.ring_small_inner_radius =   2
-var.ring_small_number       =   1 * 4
+var.ring_small_number       =   3 * 4
 
 var.ring_taper_pa_num       =   var.ring_small_pa_num + var.ring_small_number
 var.ring_taper_gradient     =   .25
 var.ring_taper_step         =   (var.ring_big_inner_radius - var.ring_small_inner_radius) / var.ring_taper_gradient - 1
-var.ring_taper_repetition   =   4
+var.ring_taper_repetition   =   1
 var.ring_taper_number       =   var.ring_taper_step * var.ring_taper_repetition
--- var.ring_taper_number       =   12
--- var.ring_test               = {1,4,9}
 
 var.ring_pa_num             =   var.ring_big_pa_num
 var.ring_pitch              =   2.5
@@ -154,7 +149,7 @@ local particle_definition = {
     el          =   17.257;
     position    =   simion.fly2.vector(1e-7, .63, 0);
 }
--- local particle_definition = "ion_guide_injection" -- alternative
+local particle_definition = "ion_guide_injection" -- alternative
 
 -- conversion from .ion format to .fly2 format
 local function ion_to_fly2(fname)
@@ -200,8 +195,8 @@ local function generate_particles(obj)
 end
 
 -- define RF parameters for radial confinement
-local confine_frequency   =   2.9
-local confine_voltage     =   59
+local confine_frequency   =   2.42
+local confine_voltage     =   49
 
 -- generate the confining square-wave RF
 local function generate_confine_rf(freq, amp)
@@ -221,7 +216,7 @@ end
 
 -- define travelling wave parameters for axial transport
 local lifting_duration  =   1e3
-local lifting_voltage   =   2.7
+local lifting_voltage   =   0
 
 -- generate the travelling square wave
 local function generate_travel_wave(t, amp)
@@ -246,7 +241,7 @@ end
 adjustable _gas_mass_amu    =   4.00260325413   -- helium
 adjustable _temperature_k   =   295             -- room temperature
 adjustable _pressure_pa     =   1e-1            -- set 0 to disable buffer gas
-adjustable _trace_level     =   2               -- don't keep an eye on ion's kinetic energy
+adjustable _trace_level     =   0               -- don't keep an eye on ion's kinetic energy
 adjustable _mark_collisions =   0               -- don't place a red dot on each collision
 
 -- freeze the random state for reproducible simulation results, set 0 to thaw
