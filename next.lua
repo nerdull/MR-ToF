@@ -38,15 +38,16 @@ var.ring_big_pa_num         =   1
 var.ring_big_inner_radius   =   5
 var.ring_big_number         =   4
 
-var.ring_small_pa_num       =   var.ring_big_pa_num + var.ring_big_number
 var.ring_small_inner_radius =   2
 var.ring_small_number       =   3 * 4
 
-var.ring_taper_pa_num       =   var.ring_small_pa_num + var.ring_small_number
+var.ring_taper_pa_num       =   var.ring_big_pa_num + var.ring_big_number
 var.ring_taper_gradient     =   .25
 var.ring_taper_step         =   (var.ring_big_inner_radius - var.ring_small_inner_radius) / var.ring_taper_gradient - 1
-var.ring_taper_repetition   =   1
+var.ring_taper_repetition   =   3
 var.ring_taper_number       =   var.ring_taper_step * var.ring_taper_repetition
+
+var.ring_small_pa_num       =   var.ring_taper_pa_num + var.ring_taper_number
 
 var.ring_pa_num             =   var.ring_big_pa_num
 var.ring_pitch              =   2.5
