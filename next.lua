@@ -36,27 +36,26 @@ local var                   =   {}
 
 var.ring_big_pa_num         =   1
 var.ring_big_inner_radius   =   5
-var.ring_big_number         =   4
+var.ring_big_number         =   2
 
+var.ring_taper_pa_num       =   var.ring_big_pa_num + var.ring_big_number
+var.ring_taper_inner_radii  =   { 4, 3.5, 3, 2.75, 2.5, 2.5, 2.25, 2.25 }
+var.ring_taper_number       =   #var.ring_taper_inner_radii
+
+var.ring_small_pa_num       =   var.ring_taper_pa_num + var.ring_taper_number
 var.ring_small_inner_radius =   2
 var.ring_small_number       =   3 * 4
 
-var.ring_taper_pa_num       =   var.ring_big_pa_num + var.ring_big_number
-var.ring_taper_gradient     =   .25
-var.ring_taper_step         =   (var.ring_big_inner_radius - var.ring_small_inner_radius) / var.ring_taper_gradient - 1
-var.ring_taper_repetition   =   3
-var.ring_taper_number       =   var.ring_taper_step * var.ring_taper_repetition
-
-var.ring_small_pa_num       =   var.ring_taper_pa_num + var.ring_taper_number
-
 var.ring_pa_num             =   var.ring_big_pa_num
-var.ring_pitch              =   2.5
-var.ring_thickness          =   1.5
+var.ring_pitches            =   { [2]    = 2;
+                                  [2.25] = 2.2; 
+                                  [2.5]  = 2.4; [2.75] = 2.4; [3] = 2.4; [3.5] = 2.4; [4] = 2.4; [5] = 2.4 }
+var.ring_thicknesses        =   { [2] = 1.2; [2.2] = 1.3; [2.4] = 1.4 }
 var.ring_outer_radius       =   10
-var.ring_number             =   var.ring_big_number + var.ring_small_number + var.ring_taper_number
+var.ring_number             =   var.ring_big_number + var.ring_taper_number + var.ring_small_number
 
 var.cap_pa_num              =   var.ring_pa_num + var.ring_number
-var.cap_thickness           =   1
+var.cap_thickness           =   .5
 var.cap_gap                 =   1
 var.cap_left_inner_radius   =   var.ring_big_inner_radius
 var.cap_right_inner_radius  =   var.ring_small_inner_radius
@@ -76,17 +75,21 @@ var.ground_pa_num           =   var.travel_wave_pa_num + var.travel_wave_length
 var.grid_size               =   5e-2
 
 -- calculate the range for cropping potential array; values are in grid units
-local crop_axial_start  =   math.ceil(    var.pipe_thickness                                            / var.grid_size )
-local crop_axial_span   =   math.ceil((   var.ring_pitch * (var.ring_number - 1) + var.ring_thickness
-                                        + (var.cap_gap + var.cap_thickness) * 2 + var.pipe_left_gap )   / var.grid_size )
-local crop_radial_span  =   math.ceil(    var.ring_outer_radius                                         / var.grid_size )
+local ring_big_pitch    =   var.ring_pitches[var.ring_big_inner_radius]
+local ring_small_pitch  =   var.ring_pitches[var.ring_small_inner_radius]
+local ring_length       =   ring_big_pitch * var.ring_big_number + ring_small_pitch * var.ring_small_number
+for key, ring_taper_inner_radius in next, var.ring_taper_inner_radii, nil do
+    ring_length         =   ring_length + var.ring_pitches[ring_taper_inner_radius]
+end
 
+local crop_axial_start  =   math.ceil(  var.pipe_thickness                                                        / var.grid_size)
+local crop_axial_span   =   math.ceil(( ring_length + (var.cap_gap + var.cap_thickness) * 2 + var.pipe_left_gap ) / var.grid_size)
+local crop_radial_span  =   math.ceil(  var.ring_outer_radius                                                     / var.grid_size)
 local crop_range        =   { crop_axial_start, 0, 0; crop_axial_span, crop_radial_span, 0 }
 
 -- calculate the corresponding workbench bounds
 local bound_axial_span  =   crop_axial_span  * var.grid_size
 local bound_radial_span =   crop_radial_span * var.grid_size
-
 local workbench_bounds  =   {
     xl  =   0                ,  xr  =   bound_axial_span ;
     yl  =  -bound_radial_span,  yr  =   bound_radial_span;
@@ -196,8 +199,8 @@ local function generate_particles(obj)
 end
 
 -- define RF parameters for radial confinement
-local confine_frequency   =   2.42
-local confine_voltage     =   49
+local confine_frequency   =   3.02
+local confine_voltage     =   81
 
 -- generate the confining square-wave RF
 local function generate_confine_rf(freq, amp)
@@ -217,7 +220,7 @@ end
 
 -- define travelling wave parameters for axial transport
 local lifting_duration  =   1e3
-local lifting_voltage   =   0
+local lifting_voltage   =   3.2
 
 -- generate the travelling square wave
 local function generate_travel_wave(t, amp)
@@ -314,7 +317,7 @@ end
 
 function segment.other_actions()
     HS1.segment.other_actions()
-    if get_ion_px_equilibrium() then ion_splat = 1 end
+    -- if get_ion_px_equilibrium() then ion_splat = 1 end
 end
 
 function segment.terminate()
