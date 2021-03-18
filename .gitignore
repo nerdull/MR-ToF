@@ -6,6 +6,9 @@ geometry/*.pa#
 geometry/*.pa[0-9]*
 geometry/*.pa-surf
 
+# results
+*.txt
+
 # screenshots
 *.png
 *.jpg

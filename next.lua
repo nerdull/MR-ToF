@@ -225,10 +225,10 @@ local lifting_voltage   =   2.3
 local lifting_phase     =   var.travel_wave_length
 
 -- generate the travelling square wave
-local function generate_travel_wave(t, amp)
+local function generate_travel_wave(t, amp, phase)
     local wav = {}
     for i = 0, var.travel_wave_length - 1 do
-        local j = (i + lifting_phase) % var.travel_wave_length
+        local j = (i + phase) % var.travel_wave_length
         wav[#wav+1] = WAV_T.electrode(var.travel_wave_pa_num + j) { WAV_T.lines {
             { time  =   0                         , potential   =   0   };
             { time  =   t *  i                    , potential   =   0   };
@@ -252,7 +252,7 @@ adjustable _trace_level     =   2               -- don't keep an eye on ion's ki
 adjustable _mark_collisions =   0               -- don't place a red dot on each collision
 
 -- freeze the random state for reproducible simulation results, set 0 to thaw
-local random_seed = 0
+local random_seed = 1
 
 -- round off the number to a given decimal place
 local function round(x, decimal)
@@ -281,6 +281,22 @@ local function get_ion_px_equilibrium()
     end
 end
 
+-- record simulation results
+local file_handler
+local file_id
+simion.printer.type  = "png"
+simion.printer.scale = 1
+
+-- store the fate of each ion
+local die_from  = {}
+local causes    = {
+        [1]     =   "trapped";
+        [-1]    =   "hitting electrode";
+        [-2]    =   "dead in water";
+        [-3]    =   "outside workbench";
+        [-4]    =   "ion killed";
+}
+
 
 ----------------------------------------------------------------------------------------------------
 ----------                                  Fly particles                                 ----------
@@ -294,17 +310,26 @@ end
 function segment.flym()
     generate_potential_array(object)
     generate_particles(particle_definition)
-    run()
+    for i = 1, var.travel_wave_length do
+        lifting_phase = i
+        file_id = ("%d"):format(i)
+        run()
+    end
+end
+
+function segment.initialize_run()
+    sim_rerun_flym = 0
+    sim_trajectory_image_control = 0
+    file_handler = io.open(("result_%s.txt"):format(file_id), 'w')
+    file_handler:write("ion,px,splat\n")
+    simion.printer.filename = ("screenshot_%s.png"):format(file_id)
+    if random_seed ~= 0 then simion.seed(random_seed - 1) end
 end
 
 function segment.init_p_values()
     simion.wb.instances[1].pa:fast_adjust { [var.ground_pa_num] = 0 }
     generate_confine_rf(confine_frequency, confine_voltage)
-    generate_travel_wave(lifting_duration, lifting_voltage)
-end
-
-function segment.initialize_run()
-    if random_seed ~= 0 then simion.seed(random_seed - 1) end
+    generate_travel_wave(lifting_duration, lifting_voltage, lifting_phase)
 end
 
 function segment.tstep_adjust()
@@ -321,8 +346,18 @@ end
 function segment.other_actions()
     HS1.segment.other_actions()
     if get_ion_px_equilibrium() then ion_splat = 1 end
+    if ion_splat ~= 0 then
+        die_from[ion_number] = causes[ion_splat]
+    end
 end
 
 function segment.terminate()
     HS1.segment.terminate()
+    file_handler:write( ion_number..','..ion_px_mm..','..die_from[ion_number]..'\n' )
+end
+
+function segment.terminate_run()
+    file_handler:close()
+    simion.print_screen()
+    sim_rerun_flym = 1
 end
