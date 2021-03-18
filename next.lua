@@ -36,27 +36,27 @@ local var                   =   {}
 
 var.ring_big_pa_num         =   1
 var.ring_big_inner_radius   =   5
-var.ring_big_number         =   2
+var.ring_big_number         =   4 * 4
 
 var.ring_taper_pa_num       =   var.ring_big_pa_num + var.ring_big_number
-var.ring_taper_inner_radii  =   { 4, 3.5, 3, 2.75, 2.5, 2.5, 2.25, 2.25 }
+var.ring_taper_inner_radii  =   { 4.5, 4, 3.5, 3.25, 3, 2.75, 2.5, 2.25 }
 var.ring_taper_number       =   #var.ring_taper_inner_radii
 
 var.ring_small_pa_num       =   var.ring_taper_pa_num + var.ring_taper_number
 var.ring_small_inner_radius =   2
-var.ring_small_number       =   3 * 4
+var.ring_small_number       =   1 * 4
 
 var.ring_pa_num             =   var.ring_big_pa_num
-var.ring_pitches            =   { [2]    = 2;
-                                  [2.25] = 2.2; 
-                                  [2.5]  = 2.4; [2.75] = 2.4; [3] = 2.4; [3.5] = 2.4; [4] = 2.4; [5] = 2.4 }
-var.ring_thicknesses        =   { [2] = 1.2; [2.2] = 1.3; [2.4] = 1.4 }
+var.ring_pitches            =   { [2]   = 2.4; [2.25] = 2.7; [2.5] = 2.9; [2.75] = 2.9;
+                                  [3]   = 2.7; [3.25] = 2.7; [3.5] = 2.7; [3.75] = 2.7;
+                                  [4]   = 2.7; [4.25] = 2.7; [4.5] = 2.7; [4.75] = 2.7; [5] = 2.7 }
+var.ring_thicknesses        =   { [2.4] = 1.4; [2.7]  = 1.6; [2.9] = 1.7 }
 var.ring_outer_radius       =   10
 var.ring_number             =   var.ring_big_number + var.ring_taper_number + var.ring_small_number
 
 var.cap_pa_num              =   var.ring_pa_num + var.ring_number
 var.cap_thickness           =   .5
-var.cap_gap                 =   1
+var.cap_gap                 =   0
 var.cap_left_inner_radius   =   var.ring_big_inner_radius
 var.cap_right_inner_radius  =   var.ring_small_inner_radius
 var.cap_outer_radius        =   var.ring_outer_radius
@@ -199,8 +199,8 @@ local function generate_particles(obj)
 end
 
 -- define RF parameters for radial confinement
-local confine_frequency   =   3.02
-local confine_voltage     =   81
+local confine_frequency   =   1.66
+local confine_voltage     =   30
 
 -- generate the confining square-wave RF
 local function generate_confine_rf(freq, amp)
@@ -219,14 +219,17 @@ local function generate_confine_rf(freq, amp)
 end
 
 -- define travelling wave parameters for axial transport
+-- the phase is chosen from { 1, ..., wave_length }
 local lifting_duration  =   1e3
-local lifting_voltage   =   3.2
+local lifting_voltage   =   2.3
+local lifting_phase     =   var.travel_wave_length
 
 -- generate the travelling square wave
 local function generate_travel_wave(t, amp)
     local wav = {}
     for i = 0, var.travel_wave_length - 1 do
-        wav[#wav+1] = WAV_T.electrode(var.travel_wave_pa_num + i) { WAV_T.lines {
+        local j = (i + lifting_phase) % var.travel_wave_length
+        wav[#wav+1] = WAV_T.electrode(var.travel_wave_pa_num + j) { WAV_T.lines {
             { time  =   0                         , potential   =   0   };
             { time  =   t *  i                    , potential   =   0   };
             { time  =   t *  i                    , potential   =   amp };
@@ -245,11 +248,11 @@ end
 adjustable _gas_mass_amu    =   4.00260325413   -- helium
 adjustable _temperature_k   =   295             -- room temperature
 adjustable _pressure_pa     =   1e-1            -- set 0 to disable buffer gas
-adjustable _trace_level     =   0               -- don't keep an eye on ion's kinetic energy
+adjustable _trace_level     =   2               -- don't keep an eye on ion's kinetic energy
 adjustable _mark_collisions =   0               -- don't place a red dot on each collision
 
 -- freeze the random state for reproducible simulation results, set 0 to thaw
-local random_seed = 1
+local random_seed = 0
 
 -- round off the number to a given decimal place
 local function round(x, decimal)
@@ -317,7 +320,7 @@ end
 
 function segment.other_actions()
     HS1.segment.other_actions()
-    -- if get_ion_px_equilibrium() then ion_splat = 1 end
+    if get_ion_px_equilibrium() then ion_splat = 1 end
 end
 
 function segment.terminate()
