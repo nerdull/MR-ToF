@@ -15,25 +15,38 @@
 $(
 local IG                        =   _G.shared_table
 
+local ring_enter_pa_num         =   IG.ring_enter_pa_num
+local ring_enter_inner_radius   =   IG.ring_enter_inner_radius
+local ring_enter_pitch          =   IG.ring_enter_pitch
+local ring_enter_thickness      =   IG.ring_enter_thickness
+local ring_enter_blend          =   IG.ring_enter_blend
+
 local ring_big_pa_num           =   IG.ring_big_pa_num
 local ring_big_inner_radius     =   IG.ring_big_inner_radius
+local ring_big_pitch            =   IG.ring_big_pitch
+local ring_big_thickness        =   IG.ring_big_thickness
 local ring_big_number           =   IG.ring_big_number
 
 local ring_taper_pa_num         =   IG.ring_taper_pa_num
 local ring_taper_inner_radii    =   IG.ring_taper_inner_radii
+local ring_taper_pitches        =   IG.ring_taper_pitches
+local ring_taper_thicknesses    =   IG.ring_taper_thicknesses
 
 local ring_small_pa_num         =   IG.ring_small_pa_num
 local ring_small_inner_radius   =   IG.ring_small_inner_radius
+local ring_small_pitch          =   IG.ring_small_pitch
+local ring_small_thickness      =   IG.ring_small_thickness
 local ring_small_number         =   IG.ring_small_number
 
-local ring_pitches              =   IG.ring_pitches
-local ring_thicknesses          =   IG.ring_thicknesses
+local ring_blend                =   IG.ring_blend
 local ring_outer_radius         =   IG.ring_outer_radius
 
 local cap_pa_num                =   IG.cap_pa_num
 local cap_thickness             =   IG.cap_thickness
-local cap_gap                   =   IG.cap_gap
+local cap_blend                 =   IG.cap_blend
+local cap_left_gap              =   IG.cap_left_gap
 local cap_left_inner_radius     =   IG.cap_left_inner_radius
+local cap_right_gap             =   IG.cap_right_gap
 local cap_right_inner_radius    =   IG.cap_right_inner_radius
 local cap_outer_radius          =   IG.cap_outer_radius
 
@@ -47,20 +60,14 @@ local grid_size                 =   IG.grid_size
 )
 
 $(
-local ring_big_pitch        =   ring_pitches[ring_big_inner_radius]
-local ring_big_thickness    =   ring_thicknesses[ring_big_pitch]
-local ring_small_pitch      =   ring_pitches[ring_small_inner_radius]
-local ring_small_thickness  =   ring_thicknesses[ring_small_pitch]
-
-local cap_left_start        =   pipe_thickness + pipe_left_gap
-local ring_big_start        =   cap_left_start + cap_thickness + cap_gap
-local ring_taper_start      =   ring_big_start + ring_big_pitch * ring_big_number
-local ring_small_start      =   ring_taper_start
-for i, ring_taper_inner_radius in next, ring_taper_inner_radii, nil do
-    ring_small_start        =   ring_small_start + ring_pitches[ring_taper_inner_radius]
-end
-local cap_right_start       =   ring_small_start + ring_small_pitch * ring_small_number
-local total_length          =   cap_right_start + cap_gap + cap_thickness + pipe_right_gap + pipe_thickness
+local cap_left_anchor       =   pipe_thickness + pipe_left_gap
+local ring_enter_anchor     =   cap_left_anchor + cap_thickness + cap_left_gap
+local ring_big_anchor       =   ring_enter_anchor + ring_enter_pitch
+local ring_taper_anchor     =   ring_big_anchor + ring_big_pitch * ring_big_number
+local ring_small_anchor     =   ring_taper_anchor
+for k, ring_taper_pitch in next, ring_taper_pitches, nil do ring_small_anchor = ring_small_anchor + ring_taper_pitch end
+local cap_right_anchor      =   ring_small_anchor + ring_small_pitch * ring_small_number + cap_right_gap
+local total_length          =   cap_right_anchor + cap_thickness + pipe_right_gap + pipe_thickness
 
 local grid_axial_num        =   math.ceil( total_length                        / grid_size) + 1
 local grid_radial_num       =   math.ceil((pipe_inner_radius + pipe_thickness) / grid_size) + 1
@@ -74,51 +81,57 @@ local grid_radial_num       =   math.ceil((pipe_inner_radius + pipe_thickness) /
 pa_define($(grid_axial_num), $(grid_radial_num), 1, cylindrical, y, electrostatic,, $(grid_size), surface=fractional)
 
 ; stacked rings
+electrode( $(ring_enter_pa_num) ) { locate( $(ring_enter_anchor + ring_enter_pitch / 2), $(ring_enter_inner_radius) ) { fill {
+    within { box( -$(ring_enter_thickness / 2 - ring_enter_blend), 0, $(ring_enter_thickness / 2 - ring_enter_blend), $(ring_outer_radius - ring_enter_inner_radius) )}
+    within { box( -$(ring_enter_thickness / 2), $(ring_enter_blend), $(ring_enter_thickness / 2), $(ring_outer_radius - ring_enter_inner_radius) )}
+    within { circle( -$(ring_enter_thickness / 2 - ring_enter_blend), $(ring_enter_blend), $(ring_enter_blend) )}
+    within { circle(  $(ring_enter_thickness / 2 - ring_enter_blend), $(ring_enter_blend), $(ring_enter_blend) )}
+}}}
+
 # for i = 0, ring_big_number - 1 do
-electrode( $(ring_big_pa_num + i) ) { locate( $(ring_big_start + (ring_big_pitch - ring_big_thickness) / 2 + ring_big_pitch * i), $(ring_big_inner_radius) ) {
-    fill {  within { box( 0, $(ring_big_thickness / 2), $(ring_big_thickness), $(ring_outer_radius - ring_big_inner_radius) ) }
-            within { circle( $(ring_big_thickness / 2), $(ring_big_thickness / 2), $(ring_big_thickness / 2) ) }
-    }
-}}
+electrode( $(ring_big_pa_num + i) ) { locate( $(ring_big_anchor + ring_big_pitch / 2 + ring_big_pitch * i), $(ring_big_inner_radius) ) { fill {
+    within { box( -$(ring_big_thickness / 2 - ring_blend), 0, $(ring_big_thickness / 2 - ring_blend), $(ring_outer_radius - ring_big_inner_radius) )}
+    within { box( -$(ring_big_thickness / 2), $(ring_blend), $(ring_big_thickness / 2), $(ring_outer_radius - ring_big_inner_radius) )}
+    within { circle( -$(ring_big_thickness / 2 - ring_blend), $(ring_blend), $(ring_blend) )}
+    within { circle(  $(ring_big_thickness / 2 - ring_blend), $(ring_blend), $(ring_blend) )}
+}}}
 # end
 
-# for key, ring_taper_inner_radius in next, ring_taper_inner_radii, nil do
-# local i                       =   key - 1
-# local ring_taper_pitch        =   ring_pitches[ring_taper_inner_radius]
-# local ring_taper_thickness    =   ring_thicknesses[ring_taper_pitch]
-electrode( $(ring_taper_pa_num + i) ) { locate( $(ring_taper_start + (ring_taper_pitch - ring_taper_thickness) / 2), $(ring_taper_inner_radius) ) {
-    fill {  within { box( 0, $(ring_taper_thickness / 2), $(ring_taper_thickness), $(ring_outer_radius - ring_taper_inner_radius) ) }
-            within { circle( $(ring_taper_thickness / 2), $(ring_taper_thickness / 2), $(ring_taper_thickness / 2) ) }
-    }
-}}
-# ring_taper_start              =   ring_taper_start + ring_taper_pitch
+# for k, ring_taper_inner_radius in next, ring_taper_inner_radii, nil do
+# local ring_taper_pitch     = ring_taper_pitches[k]
+# local ring_taper_thickness = ring_taper_thicknesses[k]
+electrode( $(ring_taper_pa_num + k - 1) ) { locate( $(ring_taper_anchor + ring_taper_pitch / 2), $(ring_taper_inner_radius) ) { fill {
+    within { box( -$(ring_taper_thickness / 2 - ring_blend), 0, $(ring_taper_thickness / 2 - ring_blend), $(ring_outer_radius - ring_taper_inner_radius) )}
+    within { box( -$(ring_taper_thickness / 2), $(ring_blend), $(ring_taper_thickness / 2), $(ring_outer_radius - ring_taper_inner_radius) )}
+    within { circle( -$(ring_taper_thickness / 2 - ring_blend), $(ring_blend), $(ring_blend) )}
+    within { circle(  $(ring_taper_thickness / 2 - ring_blend), $(ring_blend), $(ring_blend) )}
+}}}
+# ring_taper_anchor = ring_taper_anchor + ring_taper_pitch
 # end
 
 # for i = 0, ring_small_number - 1 do
-electrode( $(ring_small_pa_num + i) ) { locate( $(ring_small_start + (ring_small_pitch - ring_small_thickness) / 2 + ring_small_pitch * i), $(ring_small_inner_radius) ) {
-    fill {  within { box( 0, $(ring_small_thickness / 2), $(ring_small_thickness), $(ring_outer_radius - ring_small_inner_radius) ) }
-            within { circle( $(ring_small_thickness / 2), $(ring_small_thickness / 2), $(ring_small_thickness / 2) ) }
-    }
-}}
+electrode( $(ring_small_pa_num + i) ) { locate( $(ring_small_anchor + ring_small_pitch / 2 + ring_small_pitch * i), $(ring_small_inner_radius) ) { fill {
+    within { box( -$(ring_small_thickness / 2 - ring_blend), 0, $(ring_small_thickness / 2 - ring_blend), $(ring_outer_radius - ring_small_inner_radius) )}
+    within { box( -$(ring_small_thickness / 2), $(ring_blend), $(ring_small_thickness / 2), $(ring_outer_radius - ring_small_inner_radius) )}
+    within { circle( -$(ring_small_thickness / 2 - ring_blend), $(ring_blend), $(ring_blend) )}
+    within { circle(  $(ring_small_thickness / 2 - ring_blend), $(ring_blend), $(ring_blend) )}
+}}}
 # end
 
 ; caps
-electrode( $(cap_pa_num) ) { locate( $(cap_left_start), $(cap_left_inner_radius) ) {
-    fill {  within { box( 0, $(cap_thickness / 2), $(cap_thickness), $(cap_outer_radius - cap_left_inner_radius) ) }
-            within { circle( $(cap_thickness / 2), $(cap_thickness / 2), $(cap_thickness / 2) ) }
-    }
-}}
+electrode( $(cap_pa_num) ) { locate( $(cap_left_anchor + cap_thickness / 2), $(cap_left_inner_radius) ) { fill {
+    within { box( -$(cap_thickness / 2), $(cap_blend), $(cap_thickness / 2), $(cap_outer_radius - cap_left_inner_radius) ) }
+    within { circle( 0, $(cap_blend), $(cap_blend) ) }
+}}}
 
-electrode( $(cap_pa_num + 1) ) { locate( $(cap_right_start + cap_gap), $(cap_right_inner_radius) ) {
-    fill {  within { box( 0, $(cap_thickness / 2), $(cap_thickness), $(cap_outer_radius - cap_right_inner_radius) ) }
-            within { circle( $(cap_thickness / 2), $(cap_thickness / 2), $(cap_thickness / 2) ) }
-    }
-}}
+electrode( $(cap_pa_num + 1) ) { locate( $(cap_right_anchor + cap_thickness / 2), $(cap_right_inner_radius) ) { fill {
+    within { box( -$(cap_thickness / 2), $(cap_blend), $(cap_thickness / 2), $(cap_outer_radius - cap_right_inner_radius) ) }
+    within { circle( 0, $(cap_blend), $(cap_blend) ) }
+}}}
 
 ; vacuum pipe
-electrode( $(pipe_pa_num) ) {
-    fill {  within { box( 0, 0, $(pipe_thickness), $(pipe_inner_radius + pipe_thickness) ) }
-            within { box( 0, $(pipe_inner_radius), $(total_length), $(pipe_inner_radius + pipe_thickness) ) }
-            within { box( $(total_length - pipe_thickness), 0, $(total_length), $(pipe_inner_radius + pipe_thickness) ) }
-    }
-}
+electrode( $(pipe_pa_num) ) { fill {  
+    within { box( 0, 0, $(pipe_thickness), $(pipe_inner_radius + pipe_thickness) ) }
+    within { box( 0, $(pipe_inner_radius), $(total_length), $(pipe_inner_radius + pipe_thickness) ) }
+    within { box( $(total_length - pipe_thickness), 0, $(total_length), $(pipe_inner_radius + pipe_thickness) ) }
+}}

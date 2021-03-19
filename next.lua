@@ -34,30 +34,41 @@ local object = "ion_guide"
 -- define the potential array number and dimensions of each component
 local var                   =   {}
 
-var.ring_big_pa_num         =   1
+var.ring_enter_pa_num       =   1
+var.ring_enter_inner_radius =   3.5
+var.ring_enter_pitch        =   5
+var.ring_enter_thickness    =   3
+var.ring_enter_blend        =   1
+
+var.ring_big_pa_num         =   var.ring_enter_pa_num + 1
 var.ring_big_inner_radius   =   5
-var.ring_big_number         =   4 * 4
+var.ring_big_pitch          =   2.4
+var.ring_big_thickness      =   1.4
+var.ring_big_number         =   8 * 4
 
 var.ring_taper_pa_num       =   var.ring_big_pa_num + var.ring_big_number
-var.ring_taper_inner_radii  =   { 4.5, 4, 3.5, 3.25, 3, 2.75, 2.5, 2.25 }
+var.ring_taper_inner_radii  =   { 4, 3, 2.75, 2.5, 2.25 }
+var.ring_taper_pitches      =   { 2.4, 2.4, 2.4, 2.5, 2.4 }
+var.ring_taper_thicknesses  =   { 1.4, 1.4, 1.4, 1.5, 1.4 }
 var.ring_taper_number       =   #var.ring_taper_inner_radii
 
 var.ring_small_pa_num       =   var.ring_taper_pa_num + var.ring_taper_number
 var.ring_small_inner_radius =   2
+var.ring_small_pitch        =   2.2
+var.ring_small_thickness    =   1.3
 var.ring_small_number       =   1 * 4
 
-var.ring_pa_num             =   var.ring_big_pa_num
-var.ring_pitches            =   { [2]   = 2.4; [2.25] = 2.7; [2.5] = 2.9; [2.75] = 2.9;
-                                  [3]   = 2.7; [3.25] = 2.7; [3.5] = 2.7; [3.75] = 2.7;
-                                  [4]   = 2.7; [4.25] = 2.7; [4.5] = 2.7; [4.75] = 2.7; [5] = 2.7 }
-var.ring_thicknesses        =   { [2.4] = 1.4; [2.7]  = 1.6; [2.9] = 1.7 }
+var.ring_pa_num             =   var.ring_enter_pa_num
+var.ring_blend              =   .5
 var.ring_outer_radius       =   10
-var.ring_number             =   var.ring_big_number + var.ring_taper_number + var.ring_small_number
+var.ring_number             =   1 + var.ring_big_number + var.ring_taper_number + var.ring_small_number
 
 var.cap_pa_num              =   var.ring_pa_num + var.ring_number
 var.cap_thickness           =   .5
-var.cap_gap                 =   0
-var.cap_left_inner_radius   =   var.ring_big_inner_radius
+var.cap_blend               =   var.cap_thickness / 2
+var.cap_left_gap            =   var.cap_thickness - (var.ring_enter_pitch - var.ring_enter_thickness) / 2
+var.cap_left_inner_radius   =   var.ring_enter_inner_radius
+var.cap_right_gap           =   var.cap_thickness - (var.ring_small_pitch - var.ring_small_thickness) / 2
 var.cap_right_inner_radius  =   var.ring_small_inner_radius
 var.cap_outer_radius        =   var.ring_outer_radius
 
@@ -65,7 +76,7 @@ var.pipe_pa_num             =   var.cap_pa_num + 2
 var.pipe_inner_radius       =   50
 var.pipe_thickness          =   2
 var.pipe_left_gap           =   5
-var.pipe_right_gap          =   10
+var.pipe_right_gap          =   5
 
 var.confine_rf_pa_num       =   1
 var.travel_wave_pa_num      =   var.confine_rf_pa_num + 1
@@ -75,16 +86,13 @@ var.ground_pa_num           =   var.travel_wave_pa_num + var.travel_wave_length
 var.grid_size               =   5e-2
 
 -- calculate the range for cropping potential array; values are in grid units
-local ring_big_pitch    =   var.ring_pitches[var.ring_big_inner_radius]
-local ring_small_pitch  =   var.ring_pitches[var.ring_small_inner_radius]
-local ring_length       =   ring_big_pitch * var.ring_big_number + ring_small_pitch * var.ring_small_number
-for key, ring_taper_inner_radius in next, var.ring_taper_inner_radii, nil do
-    ring_length         =   ring_length + var.ring_pitches[ring_taper_inner_radius]
-end
+local ring_length =   var.ring_big_pitch * var.ring_big_number + var.ring_small_pitch * var.ring_small_number
+                    + var.ring_enter_pitch + var.cap_left_gap + var.cap_right_gap
+for k, ring_taper_pitch in next, var.ring_taper_pitches, nil do ring_length = ring_length + ring_taper_pitch end
 
-local crop_axial_start  =   math.ceil(  var.pipe_thickness                                                        / var.grid_size)
-local crop_axial_span   =   math.ceil(( ring_length + (var.cap_gap + var.cap_thickness) * 2 + var.pipe_left_gap ) / var.grid_size)
-local crop_radial_span  =   math.ceil(  var.ring_outer_radius                                                     / var.grid_size)
+local crop_axial_start  =   math.ceil(  var.pipe_thickness                                        / var.grid_size)
+local crop_axial_span   =   math.ceil(( ring_length + var.cap_thickness * 2 + var.pipe_left_gap ) / var.grid_size)
+local crop_radial_span  =   math.ceil(  var.ring_outer_radius                                     / var.grid_size)
 local crop_range        =   { crop_axial_start, 0, 0; crop_axial_span, crop_radial_span, 0 }
 
 -- calculate the corresponding workbench bounds
@@ -156,30 +164,34 @@ local particle_definition = {
 local particle_definition = "ion_guide_injection" -- alternative
 
 -- conversion from .ion format to .fly2 format
-local function ion_to_fly2(fname)
+local function ion_to_fly2(fname, stride)
+    local count = 0
     local t = { coordinates = 0 }
     for line in io.lines( "particle/"..fname..".txt" ) do
         if not line:match "^#" and line ~= '' then
-            local tob, mass, charge, x, y, z, az, el, ke, cwf, color = line:match
-                "([^,]*),([^,]*),([^,]*),([^,]*),([^,]*),([^,]*),([^,]*),([^,]*),([^,]*),([^,]*),([^,]*)"
-            t[#t+1]         =   simion.fly2.standard_beam {
-                mass        =   tonumber(mass);
-                charge      =   tonumber(charge);
-                ke          =   tonumber(ke);
-                az          =   tonumber(az);
-                el          =   tonumber(el);
-                tob         =   tonumber(tob)   or  0;
-                cwf         =   tonumber(cwf)   or  1;
-                color       =   tonumber(color) or  0;
-                position    =   simion.fly2.vector( tonumber(x), tonumber(y), tonumber(z) );
-            }
+            count = count + 1
+            if count % (stride or 1) == 0 then
+                local tob, mass, charge, x, y, z, az, el, ke, cwf, color = line:match
+                    "([^,]*),([^,]*),([^,]*),([^,]*),([^,]*),([^,]*),([^,]*),([^,]*),([^,]*),([^,]*),([^,]*)"
+                t[#t+1]         =   simion.fly2.standard_beam {
+                    mass        =   tonumber(mass);
+                    charge      =   tonumber(charge);
+                    ke          =   tonumber(ke);
+                    az          =   tonumber(az);
+                    el          =   tonumber(el);
+                    tob         =   tonumber(tob)   or  0;
+                    cwf         =   tonumber(cwf)   or  1;
+                    color       =   tonumber(color) or  0;
+                    position    =   simion.fly2.vector( tonumber(x), tonumber(y), tonumber(z) );
+                }
+            end
         end
     end
     return simion.fly2.particles(t)
 end
 
 -- define test particles in .fly2 format
-local function generate_particles(obj)
+local function generate_particles(obj, stride)
     local key
     for k, v in next, debug.getregistry(), nil do
         if type(v) == "table" and v.iterator then key = k; break end
@@ -192,15 +204,15 @@ local function generate_particles(obj)
             simion.fly2.standard_beam(obj);
         }
     elseif type(obj) == "string" then
-        fly2 = ion_to_fly2(obj)
+        fly2 = ion_to_fly2(obj, stride)
     end
 
     debug.getregistry()[key] = fly2
 end
 
 -- define RF parameters for radial confinement
-local confine_frequency   =   1.66
-local confine_voltage     =   30
+local confine_frequency   =   3.13
+local confine_voltage     =   63
 
 -- generate the confining square-wave RF
 local function generate_confine_rf(freq, amp)
@@ -222,13 +234,13 @@ end
 -- the phase is chosen from { 1, ..., wave_length }
 local lifting_duration  =   1e3
 local lifting_voltage   =   2.3
-local lifting_phase     =   var.travel_wave_length
+local lifting_phase     =   1
 
 -- generate the travelling square wave
 local function generate_travel_wave(t, amp, phase)
     local wav = {}
     for i = 0, var.travel_wave_length - 1 do
-        local j = (i + phase) % var.travel_wave_length
+        local j = (i + (phase or 0) ) % var.travel_wave_length
         wav[#wav+1] = WAV_T.electrode(var.travel_wave_pa_num + j) { WAV_T.lines {
             { time  =   0                         , potential   =   0   };
             { time  =   t *  i                    , potential   =   0   };
@@ -281,13 +293,7 @@ local function get_ion_px_equilibrium()
     end
 end
 
--- record simulation results
-local file_handler
-local file_id
-simion.printer.type  = "png"
-simion.printer.scale = 1
-
--- store the fate of each ion
+-- register the fate of each ion
 local die_from  = {}
 local causes    = {
         [1]     =   "trapped";
@@ -296,6 +302,12 @@ local causes    = {
         [-3]    =   "outside workbench";
         [-4]    =   "ion killed";
 }
+
+-- record simulation results
+local file_handler
+local file_id
+simion.printer.type  = "png"
+simion.printer.scale = 1
 
 
 ----------------------------------------------------------------------------------------------------
@@ -309,20 +321,23 @@ end
 
 function segment.flym()
     generate_potential_array(object)
-    generate_particles(particle_definition)
+    generate_particles(particle_definition, 10)
+
+    -- run()
     for i = 1, var.travel_wave_length do
-        lifting_phase = i
-        file_id = ("%d"):format(i)
+        lifting_phase, file_id = i, '_'..tostring(i)
         run()
     end
 end
 
 function segment.initialize_run()
+    file_handler = io.open(("result%s.txt"):format(file_id or ''), 'w')
+    file_handler:write("ion,px,splat\n")
+
     sim_rerun_flym = 0
     sim_trajectory_image_control = 0
-    file_handler = io.open(("result_%s.txt"):format(file_id), 'w')
-    file_handler:write("ion,px,splat\n")
-    simion.printer.filename = ("screenshot_%s.png"):format(file_id)
+    simion.printer.filename = ("screenshot%s.png"):format(file_id or '')
+
     if random_seed ~= 0 then simion.seed(random_seed - 1) end
 end
 
