@@ -34,40 +34,38 @@ local object = "ion_guide"
 -- define the potential array number and dimensions of each component
 local var                   =   {}
 
-var.ring_enter_pa_num       =   1
-var.ring_enter_inner_radius =   3.5
-var.ring_enter_pitch        =   5
-var.ring_enter_thickness    =   3
-var.ring_enter_blend        =   1
+var.ring_focus_pa_num       =   1
+var.ring_focus_inner_radii  =   { 5.00, 5.00, 5.00, 4.75, 4.50, 4.25, 4.00, 3.75, 3.50 }
+var.ring_focus_pitches      =   { 2.40, 2.40, 2.40, 2.40, 2.40, 2.40, 2.40, 2.40, 2.40 }
+var.ring_focus_thicknesses  =   { 1.40, 1.40, 1.40, 1.40, 1.40, 1.40, 1.40, 1.40, 1.40 }
+var.ring_focus_number       =   #var.ring_focus_inner_radii
 
-var.ring_big_pa_num         =   var.ring_enter_pa_num + 1
+var.ring_big_pa_num         =   var.ring_focus_pa_num + var.ring_focus_number
 var.ring_big_inner_radius   =   5
 var.ring_big_pitch          =   2.4
 var.ring_big_thickness      =   1.4
-var.ring_big_number         =   8 * 4
+var.ring_big_number         =   5 * 4
 
 var.ring_taper_pa_num       =   var.ring_big_pa_num + var.ring_big_number
-var.ring_taper_inner_radii  =   { 4, 3, 2.75, 2.5, 2.25 }
-var.ring_taper_pitches      =   { 2.4, 2.4, 2.4, 2.5, 2.4 }
-var.ring_taper_thicknesses  =   { 1.4, 1.4, 1.4, 1.5, 1.4 }
+var.ring_taper_inner_radii  =   { 3.50, 2.75, 2.50, 2.25, 2.00 }
+var.ring_taper_pitches      =   { 2.40, 2.40, 2.50, 2.40, 2.20 }
+var.ring_taper_thicknesses  =   { 1.40, 1.40, 1.50, 1.40, 1.30 }
 var.ring_taper_number       =   #var.ring_taper_inner_radii
 
 var.ring_small_pa_num       =   var.ring_taper_pa_num + var.ring_taper_number
 var.ring_small_inner_radius =   2
 var.ring_small_pitch        =   2.2
 var.ring_small_thickness    =   1.3
-var.ring_small_number       =   1 * 4
+var.ring_small_number       =   4
 
-var.ring_pa_num             =   var.ring_enter_pa_num
 var.ring_blend              =   .5
 var.ring_outer_radius       =   10
-var.ring_number             =   1 + var.ring_big_number + var.ring_taper_number + var.ring_small_number
 
-var.cap_pa_num              =   var.ring_pa_num + var.ring_number
+var.cap_pa_num              =   var.ring_small_pa_num + var.ring_small_number
 var.cap_thickness           =   .5
 var.cap_blend               =   var.cap_thickness / 2
-var.cap_left_gap            =   var.cap_thickness - (var.ring_enter_pitch - var.ring_enter_thickness) / 2
-var.cap_left_inner_radius   =   var.ring_enter_inner_radius
+var.cap_left_gap            =   var.cap_thickness - (var.ring_focus_pitches[1] - var.ring_focus_thicknesses[1]) / 2
+var.cap_left_inner_radius   =   var.ring_focus_inner_radii[1]
 var.cap_right_gap           =   var.cap_thickness - (var.ring_small_pitch - var.ring_small_thickness) / 2
 var.cap_right_inner_radius  =   var.ring_small_inner_radius
 var.cap_outer_radius        =   var.ring_outer_radius
@@ -75,19 +73,21 @@ var.cap_outer_radius        =   var.ring_outer_radius
 var.pipe_pa_num             =   var.cap_pa_num + 2
 var.pipe_inner_radius       =   50
 var.pipe_thickness          =   2
-var.pipe_left_gap           =   5
+var.pipe_left_gap           =   7
 var.pipe_right_gap          =   5
 
 var.confine_rf_pa_num       =   1
 var.travel_wave_pa_num      =   var.confine_rf_pa_num + 1
 var.travel_wave_length      =   4
-var.ground_pa_num           =   var.travel_wave_pa_num + var.travel_wave_length
+var.threshold_pa_num        =   var.travel_wave_pa_num + var.travel_wave_length
+var.block_pa_num            =   var.threshold_pa_num + 1
+var.ground_pa_num           =   var.block_pa_num + 1
 
 var.grid_size               =   5e-2
 
 -- calculate the range for cropping potential array; values are in grid units
-local ring_length =   var.ring_big_pitch * var.ring_big_number + var.ring_small_pitch * var.ring_small_number
-                    + var.ring_enter_pitch + var.cap_left_gap + var.cap_right_gap
+local ring_length =   var.ring_big_pitch * var.ring_big_number + var.ring_small_pitch * var.ring_small_number + var.cap_left_gap + var.cap_right_gap
+for k, ring_focus_pitch in next, var.ring_focus_pitches, nil do ring_length = ring_length + ring_focus_pitch end
 for k, ring_taper_pitch in next, var.ring_taper_pitches, nil do ring_length = ring_length + ring_taper_pitch end
 
 local crop_axial_start  =   math.ceil(  var.pipe_thickness                                        / var.grid_size)
@@ -231,10 +231,10 @@ local function generate_confine_rf(freq, amp)
 end
 
 -- define travelling wave parameters for axial transport
--- the phase is chosen from { 1, ..., wave_length }
-local lifting_duration  =   1e3
-local lifting_voltage   =   2.3
-local lifting_phase     =   1
+-- the phase is chosen from { 0, ..., wave_length - 1 }
+local lifting_duration = 1e3
+local lifting_voltage  = 2.3
+local lifting_phase    = 0
 
 -- generate the travelling square wave
 local function generate_travel_wave(t, amp, phase)
@@ -256,6 +256,12 @@ local function generate_travel_wave(t, amp, phase)
     }
 end
 
+-- empoly a thresholding potential to bring back in reflected ions
+local threshold_voltage = 2.3
+
+-- employ another blocking potential to guard the exit gate
+local block_voltage = 2.3
+
 -- ion-neutral collisional parameters
 adjustable _gas_mass_amu    =   4.00260325413   -- helium
 adjustable _temperature_k   =   295             -- room temperature
@@ -264,7 +270,7 @@ adjustable _trace_level     =   2               -- don't keep an eye on ion's ki
 adjustable _mark_collisions =   0               -- don't place a red dot on each collision
 
 -- freeze the random state for reproducible simulation results, set 0 to thaw
-local random_seed = 1
+local random_seed = 0
 
 -- round off the number to a given decimal place
 local function round(x, decimal)
@@ -321,7 +327,7 @@ end
 
 function segment.flym()
     generate_potential_array(object)
-    generate_particles(particle_definition, 10)
+    generate_particles(particle_definition, 15)
 
     -- run()
     for i = 1, var.travel_wave_length do
@@ -342,7 +348,11 @@ function segment.initialize_run()
 end
 
 function segment.init_p_values()
-    simion.wb.instances[1].pa:fast_adjust { [var.ground_pa_num] = 0 }
+    simion.wb.instances[1].pa:fast_adjust {
+        [var.threshold_pa_num]  =   threshold_voltage;
+        [var.block_pa_num]      =   block_voltage;
+        [var.ground_pa_num]     =   0;
+    }
     generate_confine_rf(confine_frequency, confine_voltage)
     generate_travel_wave(lifting_duration, lifting_voltage, lifting_phase)
 end
