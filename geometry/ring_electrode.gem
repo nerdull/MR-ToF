@@ -1,0 +1,56 @@
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;;;;;;;;      File        :   ring_electrode.gem                                        ;;;;;;;;;;
+;;;;;;;;;;      Author      :   X. Chen                                                   ;;;;;;;;;;
+;;;;;;;;;;      Description :   geometric definition of a ring electrode                  ;;;;;;;;;;
+;;;;;;;;;;      Note        :   a hybrid boundary condition is specified such that        ;;;;;;;;;;
+;;;;;;;;;;                      the electric field resembles the one in RF-driven         ;;;;;;;;;;
+;;;;;;;;;;                      stacked rings.                                            ;;;;;;;;;;
+;;;;;;;;;;      License     :   GNU GPLv3                                                 ;;;;;;;;;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;;;;;;;;                        Import and calculate parameters                         ;;;;;;;;;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+$(
+local RE                =   _G.shared_table
+
+local ring_pa_num       =   RE.ring_pa_num
+local ring_inner_radius =   RE.ring_inner_radius
+local ring_pitch        =   RE.ring_pitch
+local ring_thickness    =   RE.ring_thickness
+local ring_blend        =   RE.ring_blend
+local ring_outer_radius =   RE.ring_outer_radius
+
+local pipe_pa_num       =   RE.pipe_pa_num
+local pipe_inner_radius =   RE.pipe_inner_radius
+local pipe_thickness    =   RE.pipe_thickness
+
+local grid_size         =   RE.grid_size
+)
+
+$(
+local grid_axial_num    =   math.ceil((ring_pitch / 2    + pipe_thickness) / grid_size) + 1
+local grid_radial_num   =   math.ceil((pipe_inner_radius + pipe_thickness) / grid_size) + 1
+)
+
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;;;;;;;;                             Define potential array                             ;;;;;;;;;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+pa_define($(grid_axial_num), $(grid_radial_num), 1, cylindrical, xy, electrostatic,, $(grid_size), surface=fractional)
+
+; ring electrode
+electrode( $(ring_pa_num) ) { fill {
+    within { box( 0, $(ring_inner_radius), $(ring_thickness / 2 - ring_blend), $(ring_outer_radius) )}
+    within { box( 0, $(ring_inner_radius + ring_blend), $(ring_thickness / 2), $(ring_outer_radius) )}
+    within { circle( $(ring_thickness / 2 - ring_blend), $(ring_inner_radius + ring_blend), $(ring_blend) )}
+}}
+
+; vacuum pipe
+electrode( $(pipe_pa_num) ) { fill {  
+    within { box( 0, $(pipe_inner_radius), $(ring_pitch / 2 + pipe_thickness), $(pipe_inner_radius + pipe_thickness) )}
+    within { box( $(ring_pitch / 2), 0, $(ring_pitch / 2 + pipe_thickness), $(pipe_inner_radius + pipe_thickness) )}
+}}
