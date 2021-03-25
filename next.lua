@@ -41,7 +41,7 @@ var.ring_big_thickness      =   1.2
 var.ring_big_number         =   6
 
 var.ring_taper_pa_num       =   var.ring_big_pa_num + var.ring_big_number
-var.ring_taper_inner_radii  =   { 3.75, 3.25, 3.00, 2.75, 2.50, 2.25, 2.00 }
+var.ring_taper_inner_radii  =   { 4.50, 3.50, 3.00, 2.75, 2.50, 2.25, 2.00 }
 var.ring_taper_pitches      =   { 2.30, 2.30, 2.30, 2.30, 2.40, 2.30, 2.10 }
 var.ring_taper_thicknesses  =   { 1.20, 1.20, 1.20, 1.20, 1.20, 1.20, 1.10 }
 var.ring_taper_number       =   #var.ring_taper_inner_radii
@@ -284,15 +284,17 @@ function segment.flym()
     generate_potential_array(object)
     generate_particles(particle_definition)
 
-    file_id = '_'..lifting_voltage
-    file_handler = io.open(("result%s.txt"):format(file_id or ''), 'w')
-    file_handler:write("run,px,splat\n")
-    for i = 1, 100 do
-        run_number = i
-        print("Run No. "..run_number)
-        run()
+    for v = 1, 4 do
+        lifting_voltage, file_id = v, '_'..v
+        file_handler = io.open(("result%s.txt"):format(file_id or ''), 'w')
+        file_handler:write("run,px,splat\n")
+        for i = 1, 100 do
+            run_number = i
+            print("Run No. "..run_number)
+            run()
+        end
+        file_handler:close()
     end
-    file_handler:close()
 end
 
 function segment.initialize_run()
