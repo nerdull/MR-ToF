@@ -284,10 +284,10 @@ function segment.flym()
     generate_potential_array(object)
     generate_particles(particle_definition)
 
-    for v = 1, 4 do
+    for v = 1, 5, .3 do
         lifting_voltage, file_id = v, '_'..v
         file_handler = io.open(("result%s.txt"):format(file_id or ''), 'w')
-        file_handler:write("run,px,splat\n")
+        file_handler:write("run,px,pr,splat\n")
         for i = 1, 100 do
             run_number = i
             print("Run No. "..run_number)
@@ -332,7 +332,9 @@ end
 
 function segment.terminate()
     HS1.segment.terminate()
-    file_handler:write( run_number..','..ion_px_mm..','..die_from[ion_number]..'\n' )
+    local ion_pr_mm = math.sqrt(ion_py_mm^2 + ion_pz_mm^2)
+    file_handler:write( run_number..','..ion_px_mm..','..ion_pr_mm..','..die_from[ion_number]..'\n' )
+    file_handler:flush()
 end
 
 -- function segment.terminate_run()
