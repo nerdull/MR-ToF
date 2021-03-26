@@ -43,10 +43,10 @@ var.ring_big_pa_num         =   var.ring_focus_pa_num + var.ring_focus_number
 var.ring_big_inner_radius   =   7
 var.ring_big_pitch          =   2.3
 var.ring_big_thickness      =   1.2
-var.ring_big_number         =   6
+var.ring_big_number         =   5
 
 var.ring_blend              =   .5
-var.ring_outer_radius       =   15
+var.ring_outer_radius       =   10
 
 var.cap_pa_num              =   var.ring_big_pa_num + var.ring_big_number
 var.cap_thickness           =   .5
@@ -58,15 +58,15 @@ var.cap_right_inner_radius  =   var.ring_big_inner_radius
 var.cap_outer_radius        =   var.ring_outer_radius
 
 var.pipe_pa_num             =   var.cap_pa_num + 2
-var.pipe_inner_radius       =   50
-var.pipe_thickness          =   2
+var.pipe_inner_radius       =   15
+var.pipe_thickness          =   .5
 var.pipe_left_gap           =   15
-var.pipe_right_gap          =   5
+var.pipe_right_gap          =   1
 
 var.confine_rf_pa_num       =   1
 var.travel_wave_pa_num      =   var.confine_rf_pa_num + 1
-var.travel_wave_length      =   4
-var.threshold_pa_num        =   var.travel_wave_pa_num + var.travel_wave_length
+var.travel_wave_phase       =   0
+var.threshold_pa_num        =   var.travel_wave_pa_num + 1
 var.ground_pa_num           =   var.threshold_pa_num + 1
 
 var.grid_size               =   5e-2
@@ -217,9 +217,8 @@ end
 
 -- define travelling wave parameters for axial transport
 -- the phase is chosen from { 0, ..., wave_length - 1 }
-local lifting_duration      =   1e3
 local lifting_voltage       =   0
-local lifting_phase         =   0
+local lifting_phase         =   2
 
 -- empoly a thresholding potential to bring back in reflected ions
 local threshold_voltage     =   0
@@ -281,8 +280,8 @@ simion.printer.scale = 1
 local inject_count
 
 -- enumerate possible combinations of rings with variable inner radii
-local focus_iris_radius =   4
-local focus_radius_step =   -.5
+local focus_iris_radius =   2
+local focus_radius_step =   -1
 
 local function set_next_ring(index)
     index = index or 2
@@ -315,8 +314,9 @@ function segment.flym()
     file_handler = io.open(("result%s.txt"):format(file_id or ''), 'w')
     file_handler:write("injection efficiency,ring combo\n")
 
-    for n = 2, 7 do
+    for n = 2, 9 do
         var.ring_focus_number   =   n
+        var.travel_wave_phase   =   lifting_phase
         var.ring_big_pa_num     =   var.ring_focus_pa_num + n
         var.cap_pa_num          =   var.ring_big_pa_num + var.ring_big_number
         var.pipe_pa_num         =   var.cap_pa_num + 2
@@ -345,9 +345,9 @@ end
 
 function segment.init_p_values()
     simion.wb.instances[1].pa:fast_adjust {
-        [var.threshold_pa_num]                      =   threshold_voltage;
-        [var.travel_wave_pa_num + lifting_phase]    =   lifting_voltage;
-        [var.ground_pa_num]                         =   0;
+        [var.threshold_pa_num]      =   threshold_voltage;
+        [var.travel_wave_pa_num]    =   lifting_voltage;
+        [var.ground_pa_num]         =   0;
     }
     generate_confine_rf(confine_frequency, confine_voltage)
 end
@@ -372,6 +372,7 @@ end
 
 function segment.terminate_run()
     file_handler:write( tostring(inject_count)..','..table.concat(var.ring_focus_inner_radii, '|')..'\n' )
+    file_handler:flush()
     -- simion.print_screen()
     -- sim_rerun_flym = 1
 end

@@ -17,12 +17,11 @@ local pipe_pa_num           =   IG.pipe_pa_num
 
 local confine_rf_pa_num     =   IG.confine_rf_pa_num
 local travel_wave_pa_num    =   IG.travel_wave_pa_num
-local travel_wave_length    =   IG.travel_wave_length
+local travel_wave_phase     =   IG.travel_wave_phase
 local threshold_pa_num      =   IG.threshold_pa_num
 local ground_pa_num         =   IG.ground_pa_num
 
 local confine_rf_number     =   ring_focus_number + ring_big_number
-local travel_wave_number    =   ring_big_number
 
 -- electrode mapping table
 local electrocombo = {}
@@ -34,13 +33,7 @@ for i = 0, confine_rf_number - 1 do
 end
 electrocombo[confine_rf_pa_num] = confine_rf
 
-for i = 0, travel_wave_length - 1 do
-    local travel_wave = {}
-    for j = i, travel_wave_number - 1, travel_wave_length do
-        travel_wave[ring_big_pa_num + j] = 1
-    end
-    electrocombo[travel_wave_pa_num + i] = travel_wave
-end
+electrocombo[travel_wave_pa_num] = { [ring_big_pa_num + travel_wave_phase] = 1 }
 
 electrocombo[threshold_pa_num] = { [ring_big_pa_num - 1] = 1 }
 
