@@ -253,10 +253,11 @@ local function get_ion_px_equilibrium()
     end
 end
 
--- location of the waiting point for the final ejection
-local waiting_point = var.cap_thickness + var.cap_left_gap + var.ring_big_pitch * var.ring_big_number
-for k, ring_taper_pitch in next, var.ring_taper_pitches, nil do waiting_point = waiting_point + ring_taper_pitch end
-waiting_point = waiting_point + var.ring_small_pitch * 1.5
+-- x-interval of the waiting zone for the final ejection
+local waiting_zone_lower = var.cap_thickness + var.cap_left_gap + var.ring_big_pitch * var.ring_big_number
+for k, ring_taper_pitch in next, var.ring_taper_pitches, nil do waiting_zone_lower = waiting_zone_lower + ring_taper_pitch end
+waiting_zone_lower = waiting_zone_lower + var.ring_small_pitch
+local waiting_zone_upper = waiting_zone_lower + var.ring_small_pitch
 
 -- register the fate of each ion
 local run_number
@@ -332,7 +333,9 @@ end
 
 function segment.other_actions()
     HS1.segment.other_actions()
-    if get_ion_px_equilibrium() and ion_px_equilibrium[ion_number] == waiting_point then ion_splat = 1 end
+    if get_ion_px_equilibrium()
+        and ion_px_equilibrium[ion_number] > waiting_zone_lower
+        and ion_px_equilibrium[ion_number] < waiting_zone_upper then ion_splat = 1 end
     if ion_splat ~= 0 then die_from[ion_number] = causes[ion_splat] end
 end
 
