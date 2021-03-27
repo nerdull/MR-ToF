@@ -253,11 +253,16 @@ local function get_ion_px_equilibrium()
     end
 end
 
+-- location of the waiting point for the final ejection
+local waiting_point = var.cap_thickness + var.cap_left_gap + var.ring_big_pitch * var.ring_big_number
+for k, ring_taper_pitch in next, var.ring_taper_pitches, nil do waiting_point = waiting_point + ring_taper_pitch end
+waiting_point = waiting_point + var.ring_small_pitch * 1.5
+
 -- register the fate of each ion
 local run_number
 local die_from  = {}
 local causes    = {
-        [1]     =   "cross line";
+        [1]     =   "ready for ejection";
         [-1]    =   "hitting electrode";
         [-2]    =   "dead in water";
         [-3]    =   "outside workbench";
@@ -284,7 +289,8 @@ function segment.flym()
     generate_potential_array(object)
     generate_particles(particle_definition)
 
-    for v = 1, 5, .3 do
+    for v = 2.7, 3.2, .1 do
+    -- for k, v in next, {2.6, 2.7, 2.9, 3, 3.2, 3.3}, nil do
         lifting_voltage, file_id = v, '_'..v
         file_handler = io.open(("result%s.txt"):format(file_id or ''), 'w')
         file_handler:write("run,px,pr,splat\n")
@@ -326,7 +332,7 @@ end
 
 function segment.other_actions()
     HS1.segment.other_actions()
-    if ion_px_mm > var.cap_thickness + var.cap_left_gap + var.ring_big_pitch * (var.ring_big_number + 4) then ion_splat = 1 end
+    if get_ion_px_equilibrium() and ion_px_equilibrium[ion_number] == waiting_point then ion_splat = 1 end
     if ion_splat ~= 0 then die_from[ion_number] = causes[ion_splat] end
 end
 
