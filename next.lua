@@ -285,12 +285,12 @@ local inject_threshold = 270
 
 -- enumerate possible combinations of rings with variable inner radii
 local focus_iris_radius =   2
-local focus_radius_step =   -.25
-local focus_ring_number =   2
+local focus_radius_step =   .25
+local focus_ring_number =   5
 
-local function set_next_ring(index)
-    index = index or 2
-    if index > focus_ring_number then
+local function set_prev_ring(index)
+    index = index or focus_ring_number
+    if index == 1 then
         generate_potential_array(object)
         for v = 0, threshold_volt_max, threshold_volt_step do
             threshold_voltage = v
@@ -300,11 +300,11 @@ local function set_next_ring(index)
         return
     end
 
-    for inner_radius = var.ring_focus_inner_radii[index - 1], focus_iris_radius, focus_radius_step do
+    for inner_radius = focus_iris_radius, var.ring_big_inner_radius, focus_radius_step do
         var.ring_focus_inner_radii[index]   =   inner_radius
         var.ring_focus_pitches[index]       =   var.ring_big_pitch
         var.ring_focus_thicknesses[index]   =   var.ring_big_thickness
-        set_next_ring(index + 1)
+        set_prev_ring(index - 1)
     end
 end
 
@@ -336,7 +336,7 @@ function segment.flym()
     bound_axial_span        =   crop_axial_span  * var.grid_size
     workbench_bounds.xr     =   bound_axial_span
 
-    set_next_ring()
+    set_prev_ring()
 
     file_handler:close()
 end
