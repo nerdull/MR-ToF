@@ -217,12 +217,15 @@ end
 
 -- define travelling wave parameters for axial transport
 -- the phase is chosen from { 0, ..., wave_length - 1 }
-local lifting_voltage       =   0
-local lifting_phase         =   2
+local lifting_voltage       =   2.9
+local lifting_phase         =   0
 
 -- empoly a thresholding potential to bring back in reflected ions
-local threshold_voltage     =   0
+local threshold_voltage
+local threshold_volt_max    =   5
+local threshold_volt_step   =   .5
 
+local threshold_voltage_step
 -- ion-neutral collisional parameters
 adjustable _gas_mass_amu    =   4.00260325413   -- helium
 adjustable _temperature_k   =   295             -- room temperature
@@ -278,16 +281,22 @@ simion.printer.scale = 1
 
 -- counter for injected ions
 local inject_count
+local inject_threshold = 270
 
 -- enumerate possible combinations of rings with variable inner radii
 local focus_iris_radius =   2
-local focus_radius_step =   -1
+local focus_radius_step =   -.25
+local focus_ring_number =   2
 
 local function set_next_ring(index)
     index = index or 2
-    if index > var.ring_focus_number then
+    if index > focus_ring_number then
         generate_potential_array(object)
-        run()
+        for v = 0, threshold_volt_max, threshold_volt_step do
+            threshold_voltage = v
+            run()
+            if inject_count < inject_threshold then break end
+        end
         return
     end
 
@@ -305,31 +314,29 @@ end
 
 function segment.load()
     simion.window.state = "maximized"
-    sim_trajectory_image_control = 1
+    sim_trajectory_image_control = 3
 end
 
 function segment.flym()
     generate_particles(particle_definition)
 
+    file_id = '_'..lifting_phase..'_'..focus_ring_number
     file_handler = io.open(("result%s.txt"):format(file_id or ''), 'w')
-    file_handler:write("injection efficiency,ring combo\n")
+    file_handler:write("injection efficiency,threshold voltage,ring combo\n")
 
-    for n = 2, 9 do
-        var.ring_focus_number   =   n
-        var.travel_wave_phase   =   lifting_phase
-        var.ring_big_pa_num     =   var.ring_focus_pa_num + n
-        var.cap_pa_num          =   var.ring_big_pa_num + var.ring_big_number
-        var.pipe_pa_num         =   var.cap_pa_num + 2
+    var.ring_focus_number   =   focus_ring_number
+    var.travel_wave_phase   =   lifting_phase
+    var.ring_big_pa_num     =   var.ring_focus_pa_num + focus_ring_number
+    var.cap_pa_num          =   var.ring_big_pa_num + var.ring_big_number
+    var.pipe_pa_num         =   var.cap_pa_num + 2
 
-        ring_length             =   var.ring_big_pitch * (var.ring_big_number + n) + var.cap_left_gap + var.cap_right_gap
-        crop_axial_span         =   math.ceil(( ring_length + var.cap_thickness * 2 + var.pipe_left_gap ) / var.grid_size)
-        crop_range[4]           =   crop_axial_span
+    ring_length             =   var.ring_big_pitch * (var.ring_big_number + focus_ring_number) + var.cap_left_gap + var.cap_right_gap
+    crop_axial_span         =   math.ceil(( ring_length + var.cap_thickness * 2 + var.pipe_left_gap ) / var.grid_size)
+    crop_range[4]           =   crop_axial_span
+    bound_axial_span        =   crop_axial_span  * var.grid_size
+    workbench_bounds.xr     =   bound_axial_span
 
-        bound_axial_span        =   crop_axial_span  * var.grid_size
-        workbench_bounds["xr"]  =   bound_axial_span
-
-        set_next_ring()
-    end
+    set_next_ring()
 
     file_handler:close()
 end
@@ -371,7 +378,7 @@ function segment.terminate()
 end
 
 function segment.terminate_run()
-    file_handler:write( tostring(inject_count)..','..table.concat(var.ring_focus_inner_radii, '|')..'\n' )
+    file_handler:write( tostring(inject_count)..','..threshold_voltage..','..table.concat(var.ring_focus_inner_radii, '|')..'\n' )
     file_handler:flush()
     -- simion.print_screen()
     -- sim_rerun_flym = 1
