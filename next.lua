@@ -222,9 +222,9 @@ local lifting_phase         =   0
 
 -- empoly a thresholding potential to bring back in reflected ions
 local threshold_voltage     =   2
-local threshold_volt_min    =   1.5
-local threshold_volt_max    =   2.5
-local threshold_volt_step   =   .2
+local threshold_volt_min    =   1.7
+local threshold_volt_max    =   2.3
+local threshold_volt_step   =   .1
 
 -- ion-neutral collisional parameters
 adjustable _gas_mass_amu    =   4.00260325413   -- helium
@@ -307,17 +307,14 @@ function segment.flym()
     file_handler:write("injection efficiency,threshold voltage,ring combo\n")
 
     var.travel_wave_phase = lifting_phase
-    for radius_1 = 5.5, 5, focus_radius_step do
-        for radius_2 = 5, 4, focus_radius_step do
-            var.ring_focus_inner_radii[6] = radius_1
-            var.ring_focus_inner_radii[7] = radius_2
-            generate_potential_array(object)
+    for radius = 4.5, 4, focus_radius_step do
+        var.ring_focus_inner_radii[7] = radius
+        generate_potential_array(object)
 
-            for v = threshold_volt_min, threshold_volt_max, threshold_volt_step do
-                threshold_voltage = v
-                run()
-                if inject_count <= inject_threshold then break end
-            end
+        for v = threshold_volt_min, threshold_volt_max, threshold_volt_step do
+            threshold_voltage = v
+            run()
+            if inject_count <= inject_threshold then break end
         end
     end
 
