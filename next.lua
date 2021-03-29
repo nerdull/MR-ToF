@@ -34,7 +34,7 @@ local object = "ion_guide"
 local var                   =   {}
 
 var.ring_focus_pa_num       =   1
-var.ring_focus_inner_radii  =   { 7.00, 7.00, 7.00, 6.50, 6.00, 5.25, 4.50, 4.00 }
+var.ring_focus_inner_radii  =   { 7.00, 7.00, 7.00, 6.50, 5.75, 5.25, 4.50, 4.00 }
 var.ring_focus_pitches      =   { 2.30, 2.30, 2.30, 2.30, 2.30, 2.30, 2.30, 2.30 }
 var.ring_focus_thicknesses  =   { 1.20, 1.20, 1.20, 1.20, 1.20, 1.20, 1.20, 1.20 }
 var.ring_focus_number       =   #var.ring_focus_inner_radii
@@ -222,8 +222,9 @@ local lifting_phase         =   0
 
 -- empoly a thresholding potential to bring back in reflected ions
 local threshold_voltage     =   2
-local threshold_volt_max    =   4
-local threshold_volt_step   =   1
+local threshold_volt_min    =   1
+local threshold_volt_max    =   3
+local threshold_volt_step   =   .5
 
 -- ion-neutral collisional parameters
 adjustable _gas_mass_amu    =   4.00260325413   -- helium
@@ -275,14 +276,15 @@ local causes    = {
 -- record simulation results
 local file_handler
 local file_id
-simion.printer.type  = "png"
-simion.printer.scale = 1
+simion.printer.type     =   "png"
+simion.printer.scale    =   1
 
 -- counter for injected ions
 local inject_count
+local inject_threshold  =   291
 
 -- enumerate possible combinations of rings with variable inner radii
-local focus_radius_step = -1
+local focus_radius_step =   -.25
 
 
 ----------------------------------------------------------------------------------------------------
@@ -297,6 +299,9 @@ end
 function segment.flym()
     generate_particles(particle_definition)
 
+    -- generate_potential_array(object)
+    -- run()
+
     file_id = '_'..lifting_phase
     file_handler = io.open(("result%s.txt"):format(file_id or ''), 'w')
     file_handler:write("injection efficiency,threshold voltage,ring combo\n")
@@ -308,9 +313,10 @@ function segment.flym()
             var.ring_focus_inner_radii[7] = radius_2
             generate_potential_array(object)
 
-            for v = 0, threshold_volt_max, threshold_volt_step do
+            for v = threshold_volt_min, threshold_volt_max, threshold_volt_step do
                 threshold_voltage = v
                 run()
+                if inject_count < inject_threshold then break end
             end
         end
     end
@@ -355,7 +361,7 @@ function segment.terminate()
 end
 
 function segment.terminate_run()
-    print("# injected ions: "..inject_count)
+    print("thresholding voltage: "..threshold_voltage..", # injected ions: "..inject_count)
     file_handler:write( tostring(inject_count)..','..threshold_voltage..','..table.concat(var.ring_focus_inner_radii, '|')..'\n' )
     file_handler:flush()
     -- simion.print_screen()
