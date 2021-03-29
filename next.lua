@@ -34,7 +34,7 @@ local object = "ion_guide"
 local var                   =   {}
 
 var.ring_focus_pa_num       =   1
-var.ring_focus_inner_radii  =   { 7.00, 7.00, 7.00, 6.50, 5.75, 5.25, 4.50, 4.00 }
+var.ring_focus_inner_radii  =   { 7.00, 7.00, 7.00, 6.50, 5.75, 5.25, 4.25, 4.00 }
 var.ring_focus_pitches      =   { 2.30, 2.30, 2.30, 2.30, 2.30, 2.30, 2.30, 2.30 }
 var.ring_focus_thicknesses  =   { 1.20, 1.20, 1.20, 1.20, 1.20, 1.20, 1.20, 1.20 }
 var.ring_focus_number       =   #var.ring_focus_inner_radii
@@ -222,9 +222,9 @@ local lifting_phase         =   0
 
 -- empoly a thresholding potential to bring back in reflected ions
 local threshold_voltage     =   2
-local threshold_volt_min    =   1
-local threshold_volt_max    =   3
-local threshold_volt_step   =   .5
+local threshold_volt_min    =   1.5
+local threshold_volt_max    =   2.5
+local threshold_volt_step   =   .2
 
 -- ion-neutral collisional parameters
 adjustable _gas_mass_amu    =   4.00260325413   -- helium
@@ -307,8 +307,8 @@ function segment.flym()
     file_handler:write("injection efficiency,threshold voltage,ring combo\n")
 
     var.travel_wave_phase = lifting_phase
-    for radius_1 = var.ring_focus_inner_radii[5], var.ring_focus_inner_radii[8], focus_radius_step do
-        for radius_2 = radius_1, var.ring_focus_inner_radii[8], focus_radius_step do
+    for radius_1 = 5.5, 5, focus_radius_step do
+        for radius_2 = 5, 4, focus_radius_step do
             var.ring_focus_inner_radii[6] = radius_1
             var.ring_focus_inner_radii[7] = radius_2
             generate_potential_array(object)
@@ -316,7 +316,7 @@ function segment.flym()
             for v = threshold_volt_min, threshold_volt_max, threshold_volt_step do
                 threshold_voltage = v
                 run()
-                if inject_count < inject_threshold then break end
+                if inject_count <= inject_threshold then break end
             end
         end
     end
