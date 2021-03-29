@@ -34,9 +34,9 @@ local object = "ion_guide"
 local var                   =   {}
 
 var.ring_focus_pa_num       =   1
-var.ring_focus_inner_radii  =   { 7.0 }
-var.ring_focus_pitches      =   { 2.3 }
-var.ring_focus_thicknesses  =   { 1.2 }
+var.ring_focus_inner_radii  =   { 7.00, 7.00, 7.00, 6.50, 6.00, 5.25, 4.50, 4.00 }
+var.ring_focus_pitches      =   { 2.30, 2.30, 2.30, 2.30, 2.30, 2.30, 2.30, 2.30 }
+var.ring_focus_thicknesses  =   { 1.20, 1.20, 1.20, 1.20, 1.20, 1.20, 1.20, 1.20 }
 var.ring_focus_number       =   #var.ring_focus_inner_radii
 
 var.ring_big_pa_num         =   var.ring_focus_pa_num + var.ring_focus_number
@@ -46,7 +46,7 @@ var.ring_big_thickness      =   1.2
 var.ring_big_number         =   5
 
 var.ring_blend              =   .5
-var.ring_outer_radius       =   10
+var.ring_outer_radius       =   15
 
 var.cap_pa_num              =   var.ring_big_pa_num + var.ring_big_number
 var.cap_thickness           =   .5
@@ -58,10 +58,10 @@ var.cap_right_inner_radius  =   var.ring_big_inner_radius
 var.cap_outer_radius        =   var.ring_outer_radius
 
 var.pipe_pa_num             =   var.cap_pa_num + 2
-var.pipe_inner_radius       =   15
-var.pipe_thickness          =   .5
+var.pipe_inner_radius       =   50
+var.pipe_thickness          =   2
 var.pipe_left_gap           =   15
-var.pipe_right_gap          =   1
+var.pipe_right_gap          =   5
 
 var.confine_rf_pa_num       =   1
 var.travel_wave_pa_num      =   var.confine_rf_pa_num + 1
@@ -221,11 +221,10 @@ local lifting_voltage       =   2.9
 local lifting_phase         =   0
 
 -- empoly a thresholding potential to bring back in reflected ions
-local threshold_voltage
-local threshold_volt_max    =   5
-local threshold_volt_step   =   .5
+local threshold_voltage     =   2
+local threshold_volt_max    =   4
+local threshold_volt_step   =   1
 
-local threshold_voltage_step
 -- ion-neutral collisional parameters
 adjustable _gas_mass_amu    =   4.00260325413   -- helium
 adjustable _temperature_k   =   295             -- room temperature
@@ -281,32 +280,10 @@ simion.printer.scale = 1
 
 -- counter for injected ions
 local inject_count
-local inject_threshold = 270
 
 -- enumerate possible combinations of rings with variable inner radii
-local focus_iris_radius =   2
-local focus_radius_step =   .25
-local focus_ring_number =   5
+local focus_radius_step = -1
 
-local function set_prev_ring(index)
-    index = index or focus_ring_number
-    if index == 1 then
-        generate_potential_array(object)
-        for v = 0, threshold_volt_max, threshold_volt_step do
-            threshold_voltage = v
-            run()
-            if inject_count < inject_threshold then break end
-        end
-        return
-    end
-
-    for inner_radius = focus_iris_radius, var.ring_big_inner_radius, focus_radius_step do
-        var.ring_focus_inner_radii[index]   =   inner_radius
-        var.ring_focus_pitches[index]       =   var.ring_big_pitch
-        var.ring_focus_thicknesses[index]   =   var.ring_big_thickness
-        set_prev_ring(index - 1)
-    end
-end
 
 ----------------------------------------------------------------------------------------------------
 ----------                                  Fly particles                                 ----------
@@ -314,29 +291,29 @@ end
 
 function segment.load()
     simion.window.state = "maximized"
-    sim_trajectory_image_control = 3
+    sim_trajectory_image_control = 1
 end
 
 function segment.flym()
     generate_particles(particle_definition)
 
-    file_id = '_'..lifting_phase..'_'..focus_ring_number
+    file_id = '_'..lifting_phase
     file_handler = io.open(("result%s.txt"):format(file_id or ''), 'w')
     file_handler:write("injection efficiency,threshold voltage,ring combo\n")
 
-    var.ring_focus_number   =   focus_ring_number
-    var.travel_wave_phase   =   lifting_phase
-    var.ring_big_pa_num     =   var.ring_focus_pa_num + focus_ring_number
-    var.cap_pa_num          =   var.ring_big_pa_num + var.ring_big_number
-    var.pipe_pa_num         =   var.cap_pa_num + 2
+    var.travel_wave_phase = lifting_phase
+    for radius_1 = var.ring_focus_inner_radii[5], var.ring_focus_inner_radii[8], focus_radius_step do
+        for radius_2 = radius_1, var.ring_focus_inner_radii[8], focus_radius_step do
+            var.ring_focus_inner_radii[6] = radius_1
+            var.ring_focus_inner_radii[7] = radius_2
+            generate_potential_array(object)
 
-    ring_length             =   var.ring_big_pitch * (var.ring_big_number + focus_ring_number) + var.cap_left_gap + var.cap_right_gap
-    crop_axial_span         =   math.ceil(( ring_length + var.cap_thickness * 2 + var.pipe_left_gap ) / var.grid_size)
-    crop_range[4]           =   crop_axial_span
-    bound_axial_span        =   crop_axial_span  * var.grid_size
-    workbench_bounds.xr     =   bound_axial_span
-
-    set_prev_ring()
+            for v = 0, threshold_volt_max, threshold_volt_step do
+                threshold_voltage = v
+                run()
+            end
+        end
+    end
 
     file_handler:close()
 end
@@ -378,6 +355,7 @@ function segment.terminate()
 end
 
 function segment.terminate_run()
+    print("# injected ions: "..inject_count)
     file_handler:write( tostring(inject_count)..','..threshold_voltage..','..table.concat(var.ring_focus_inner_radii, '|')..'\n' )
     file_handler:flush()
     -- simion.print_screen()
