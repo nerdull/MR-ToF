@@ -9,6 +9,9 @@ geometry/*.pa-surf
 # results
 *.txt
 
+# particle definitions
+!particle/*.txt
+
 # screenshots
 *.png
 *.jpg
