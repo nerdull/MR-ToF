@@ -350,7 +350,7 @@ end
 function segment.flym()
     generate_particles(particle_definition, 30)
 
-    for n = 10, 40, 6 do
+    for n = 42, 84, 7 do
         var.ring_big_number     =   n
         var.ring_taper_pa_num   =   var.ring_big_pa_num + n
         var.ring_small_pa_num   =   var.ring_taper_pa_num + var.ring_taper_number
@@ -415,11 +415,22 @@ function segment.terminate()
     HS1.segment.terminate()
     local ion_pr_mm = math.sqrt(ion_py_mm^2 + ion_pz_mm^2)
     file_handler:write( ion_number..','..ion_px_mm..','..ion_pr_mm..','..die_from[ion_number]..'\n' )
-    file_handler:flush()
 end
 
 function segment.terminate_run()
+    local count_trapped = 0
+    local count_escaped = 0
+    local count_blocked = 0
+    for k, cause in next, die_from, nil do
+        if     cause == "trapped"           then count_trapped = count_trapped + 1
+        elseif cause == "hitting electrode" then count_blocked = count_blocked + 1
+        elseif cause == "outside workbench" then count_escaped = count_escaped + 1 end
+    end
+
+    file_handler:write( "trapped: "..count_trapped..", blocked: "..count_blocked..", escaped: "..count_escaped..'\n' )
     file_handler:close()
+    die_from = {}
+
     -- simion.print_screen()
     -- sim_rerun_flym = 1
 end
