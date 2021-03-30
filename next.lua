@@ -302,7 +302,7 @@ end
 -- register the fate of each ion
 local die_from  = {}
 local causes    = {
-        [1]     =   "ready for ejection";
+        [1]     =   "trapped";
         [-1]    =   "hitting electrode";
         [-2]    =   "dead in water";
         [-3]    =   "outside workbench";
@@ -344,33 +344,38 @@ end
 
 function segment.load()
     simion.window.state = "maximized"
-    sim_trajectory_image_control = 1
+    sim_trajectory_image_control = 3
 end
 
 function segment.flym()
-    generate_potential_array(object)
-    generate_particles(particle_definition, 300)
+    generate_particles(particle_definition, 30)
 
-    run()
+    for n = 10, 40, 6 do
+        var.ring_big_number     =   n
+        var.ring_taper_pa_num   =   var.ring_big_pa_num + n
+        var.ring_small_pa_num   =   var.ring_taper_pa_num + var.ring_taper_number
+        var.cap_pa_num          =   var.ring_small_pa_num + var.ring_small_number
+        var.pipe_pa_num         =   var.cap_pa_num + 2
+
+        ring_length = var.ring_big_pitch * n + var.ring_small_pitch * var.ring_small_number + var.cap_left_gap + var.cap_right_gap
+        for k, ring_focus_pitch in next, var.ring_focus_pitches, nil do ring_length = ring_length + ring_focus_pitch end
+        for k, ring_taper_pitch in next, var.ring_taper_pitches, nil do ring_length = ring_length + ring_taper_pitch end
+        crop_axial_span     =   math.ceil((ring_length + var.cap_thickness * 2 + var.pipe_left_gap) / var.grid_size)
+        crop_range[4]       =   crop_axial_span
+        workbench_bounds.xr =   crop_axial_span * var.grid_size
+        generate_potential_array(object)
+
+        for i = 0, 3 do
+            lifting_phase = i
+            file_id = '_'..n..'_'..i
+            run()
+        end
+    end
 end
 
 function segment.initialize_run()
-    file_handler = io.open("particle/ion_guide_ejection.txt", 'w')
-    file_handler:write
-[[
-####################################################################################################
-##########      File        :   ion_guide_ejection.txt                                    ##########
-##########      Author      :   X. Chen                                                   ##########
-##########      Description :   definition of test paticles                               ##########
-##########      Note        :   the following lines follow SIMION .ion format, i.e.,      ##########
-##########                      on each line the comma separated values are               ##########
-##########                      tob, mass, charge, x, y, z, az, el, ke, cwf, color,       ##########
-##########                      where omitted parameters take default values              ##########
-##########      License     :   GNU GPLv3                                                 ##########
-####################################################################################################
-
-
-]]
+    file_handler = io.open(("result%s.txt"):format(file_id or ''), 'w')
+    file_handler:write("ion,px,pr,splat\n")
 
     -- sim_rerun_flym = 0
     -- sim_trajectory_image_control = 0
@@ -402,29 +407,15 @@ end
 
 function segment.other_actions()
     HS1.segment.other_actions()
-
-    if next_sample_time == nil then
-        if get_ion_px_equilibrium()
-            and ion_px_equilibrium[ion_number] < waiting_point + .2
-            and ion_px_equilibrium[ion_number] > waiting_point - .3 then
-            next_sample_time = ion_time_of_flight + next_sample_interval()
-        end
-    else
-        if ion_time_of_flight > next_sample_time then
-            sample_ion_state()
-            next_sample_time  = ion_time_of_flight + next_sample_interval()
-            remaining_samples = remaining_samples - 1
-            if remaining_samples == 0 then ion_splat = 1 end
-        end
-    end
-
-    -- if ion_splat ~= 0 then
-    --     die_from[ion_number] = causes[ion_splat]
-    -- end
+    if ion_time_of_flight > lifting_duration then ion_splat = 1 end
+    if ion_splat ~= 0 then die_from[ion_number] = causes[ion_splat] end
 end
 
 function segment.terminate()
     HS1.segment.terminate()
+    local ion_pr_mm = math.sqrt(ion_py_mm^2 + ion_pz_mm^2)
+    file_handler:write( ion_number..','..ion_px_mm..','..ion_pr_mm..','..die_from[ion_number]..'\n' )
+    file_handler:flush()
 end
 
 function segment.terminate_run()
