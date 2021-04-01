@@ -23,13 +23,13 @@ local object = "ring_electrode"
 local var               =   {}
 
 var.ring_pa_num         =   1
-var.ring_inner_radius   =   2
-var.ring_pitch          =   2.1
+var.ring_inner_radius   =   7
+var.ring_pitch          =   2.5
 var.ring_blend          =   .5
 var.ring_outer_radius   =   15
 
 var.pipe_pa_num         =   2
-var.pipe_inner_radius   =   50
+var.pipe_inner_radius   =   30
 var.pipe_thickness      =   .5
 
 var.grid_size           =   5e-3
@@ -123,7 +123,7 @@ function segment.load()
 end
 
 function segment.flym()
-    for s = 1, var.ring_pitch, .1 do
+    for s = math.floor(var.ring_pitch * 5) / 10, var.ring_pitch * .7, .1 do
         var.ring_thickness = s
         generate_potential_array(object)
         export_potential_array(("%.1f"):format(var.ring_thickness))
