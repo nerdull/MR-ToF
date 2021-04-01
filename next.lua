@@ -172,7 +172,8 @@ local function ion_to_fly2(fname, stride)
     for line in io.lines( "particle/"..fname..".txt" ) do
         if not line:match "^#" and line ~= '' then
             count = count + 1
-            if count % (stride or 1) == 0 then
+            if count > 110 and count < 190 then
+            -- if count % (stride or 1) == 0 then
                 local tob, mass, charge, x, y, z, az, el, ke, cwf, color = line:match
                     "([^,]*),([^,]*),([^,]*),([^,]*),([^,]*),([^,]*),([^,]*),([^,]*),([^,]*),([^,]*),([^,]*)"
                 t[#t+1]         =   simion.fly2.standard_beam {
@@ -259,7 +260,7 @@ local function generate_travel_wave(t, amp, phase)
 end
 
 -- empoly a thresholding potential to bring back in reflected ions
-local threshold_voltage = 1.5
+local threshold_voltage = 1.8
 
 -- employ another blocking potential to guard the exit gate
 local block_voltage = lifting_voltage
@@ -270,9 +271,7 @@ adjustable _temperature_k   =   295             -- room temperature
 adjustable _pressure_pa     =   1e-1            -- set 0 to disable buffer gas
 adjustable _trace_level     =   0               -- don't keep an eye on ion's kinetic energy
 adjustable _mark_collisions =   0               -- don't place a red dot on each collision
-
--- freeze the random state for reproducible simulation results, set 0 to thaw
-local random_seed = 0
+adjustable _random_seed     =   0               -- undetermined seed at the beginning of each run
 
 -- round off the number to a given decimal place
 local function round(x, decimal)
@@ -379,7 +378,11 @@ function segment.initialize_run()
 
     count_reflected[run_number] = 0
 
-    if random_seed ~= 0 then simion.seed(math.floor(simion.rand() * 1e4)) end
+    if _random_seed ~= 0 then
+        simion.seed(_random_seed - 1)
+    else
+        simion.seed(math.floor(simion.rand() * 1e4))
+    end
 end
 
 function segment.init_p_values()
