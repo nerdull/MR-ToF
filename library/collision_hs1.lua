@@ -229,11 +229,7 @@ end
 
 local is_initialized = false
 local function init()
-    if _random_seed ~= 0 then
-        seed(_random_seed-1)
-    else
-        seed(math.floor(rand() * 1e4))
-    end
+    if _random_seed ~= 0 then seed(_random_seed-1) end
 
     if HS1.init then HS1.init() end
     is_initialized = true

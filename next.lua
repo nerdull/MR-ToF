@@ -38,8 +38,8 @@ local var                   =   {}
 
 var.ring_focus_pa_num       =   1
 var.ring_focus_inner_radii  =   { 7.00, 7.00, 7.00, 6.50, 6.00, 5.50, 4.75, 4.00 }
-var.ring_focus_pitches      =   { 2.50, 2.50, 2.50, 2.50, 2.50, 2.40, 2.40, 2.40 }
-var.ring_focus_thicknesses  =   { 1.30, 1.30, 1.30, 1.30, 1.30, 1.20, 1.20, 1.20 }
+var.ring_focus_pitches      =   { 2.50, 2.50, 2.50, 2.50, 2.50, 2.50, 2.40, 2.40 }
+var.ring_focus_thicknesses  =   { 1.30, 1.30, 1.30, 1.30, 1.30, 1.30, 1.20, 1.20 }
 var.ring_focus_number       =   #var.ring_focus_inner_radii
 
 var.ring_big_pa_num         =   var.ring_focus_pa_num + var.ring_focus_number
@@ -50,13 +50,13 @@ var.ring_big_number         =   23
 
 var.ring_taper_pa_num       =   var.ring_big_pa_num + var.ring_big_number
 var.ring_taper_inner_radii  =   { 5.25, 3.75, 2.75, 2.00 }
-var.ring_taper_pitches      =   { 2.40, 2.40, 2.30, 2.20 }
+var.ring_taper_pitches      =   { 2.40, 2.40, 2.30, 2.10 }
 var.ring_taper_thicknesses  =   { 1.20, 1.20, 1.20, 1.10 }
 var.ring_taper_number       =   #var.ring_taper_inner_radii
 
 var.ring_small_pa_num       =   var.ring_taper_pa_num + var.ring_taper_number
 var.ring_small_inner_radius =   2
-var.ring_small_pitch        =   2.2
+var.ring_small_pitch        =   2.1
 var.ring_small_thickness    =   1.1
 var.ring_small_number       =   4
 
@@ -172,8 +172,9 @@ local function ion_to_fly2(fname, stride)
     for line in io.lines( "particle/"..fname..".txt" ) do
         if not line:match "^#" and line ~= '' then
             count = count + 1
-            if count > 110 and count < 190 then
-            -- if count % (stride or 1) == 0 then
+            if count % (stride or 1) == 0 then
+            -- if count > 110 and count < 190 then
+            -- if count <= 110 or count >= 190 then
                 local tob, mass, charge, x, y, z, az, el, ke, cwf, color = line:match
                     "([^,]*),([^,]*),([^,]*),([^,]*),([^,]*),([^,]*),([^,]*),([^,]*),([^,]*),([^,]*),([^,]*)"
                 t[#t+1]         =   simion.fly2.standard_beam {
@@ -214,8 +215,8 @@ local function generate_particles(obj, stride)
 end
 
 -- define RF parameters for radial confinement
-local confine_frequency   =   3.23
-local confine_voltage     =   65
+local confine_frequency   =   3.82
+local confine_voltage     =   82
 
 -- generate the confining square-wave RF
 local function generate_confine_rf(freq, amp)
@@ -236,8 +237,8 @@ end
 -- define travelling wave parameters for axial transport
 -- the phase is chosen from { 0, ..., wave_length - 1 }
 local lifting_duration = 1e3
-local lifting_voltage  = 0
-local lifting_phase    = 0
+local lifting_voltage  = 2.5
+local lifting_phase    = 3
 
 -- generate the travelling square wave
 local function generate_travel_wave(t, amp, phase)
@@ -260,7 +261,7 @@ local function generate_travel_wave(t, amp, phase)
 end
 
 -- empoly a thresholding potential to bring back in reflected ions
-local threshold_voltage = 1.8
+local threshold_voltage = 1.3
 
 -- employ another blocking potential to guard the exit gate
 local block_voltage = lifting_voltage
@@ -271,7 +272,9 @@ adjustable _temperature_k   =   295             -- room temperature
 adjustable _pressure_pa     =   1e-1            -- set 0 to disable buffer gas
 adjustable _trace_level     =   0               -- don't keep an eye on ion's kinetic energy
 adjustable _mark_collisions =   0               -- don't place a red dot on each collision
-adjustable _random_seed     =   0               -- undetermined seed at the beginning of each run
+
+-- freeze the random state for reproducible simulation results, set 0 to thaw
+local random_seed = 0
 
 -- round off the number to a given decimal place
 local function round(x, decimal)
@@ -341,6 +344,7 @@ end
 -- ending position of the injection region
 local injection_end = var.pipe_left_gap + var.cap_thickness + var.cap_left_gap
 for k, ring_focus_pitch in next, var.ring_focus_pitches, nil do injection_end = injection_end + ring_focus_pitch end
+injection_end = injection_end + var.ring_big_pitch * 4
 
 -- counter for reflected ions
 local count_reflected = {}
@@ -362,7 +366,7 @@ function segment.flym()
     -- run_number = 1
     -- run()
 
-    for i = 1, 9 do
+    for i = 1, 10 do
         run_number = i
         run()
     end
@@ -378,8 +382,8 @@ function segment.initialize_run()
 
     count_reflected[run_number] = 0
 
-    if _random_seed ~= 0 then
-        simion.seed(_random_seed - 1)
+    if random_seed ~= 0 then
+        simion.seed(random_seed - 1)
     else
         simion.seed(math.floor(simion.rand() * 1e4))
     end
@@ -413,6 +417,9 @@ function segment.other_actions()
 
     if ion_splat ~= 0 then
         die_from[ion_number] = causes[ion_splat]
+        if causes[ion_splat] == "hitting electrode" then
+            print("hit electrode at "..ion_px_mm)
+        end
     end
 end
 
@@ -422,9 +429,13 @@ end
 
 function segment.terminate_run()
     for k, cause in next, die_from, nil do
-        if cause == "outside workbench" then count_reflected[run_number] = count_reflected[run_number] + 1 end
+        if cause == "outside workbench" then
+            count_reflected[run_number] = count_reflected[run_number] + 1
+        elseif cause == "hitting electrode" then
+            count_reflected[run_number] = count_reflected[run_number] + 1
+        end
     end
-    print("# reflected: "..count_reflected[run_number])
+    print("# run: "..run_number..", # reflected: "..count_reflected[run_number])
     -- file_handler:close()
     -- simion.print_screen()
     -- sim_rerun_flym = 1
