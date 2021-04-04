@@ -35,21 +35,21 @@ local object = "ion_guide"
 local var                   =   {}
 
 var.ring_focus_pa_num       =   1
-var.ring_focus_inner_radii  =   { 7.00, 7.00, 7.00, 6.50, 5.75, 5.25, 4.25, 4.00 }
-var.ring_focus_pitches      =   { 2.30, 2.30, 2.30, 2.30, 2.30, 2.30, 2.30, 2.30 }
-var.ring_focus_thicknesses  =   { 1.20, 1.20, 1.20, 1.20, 1.20, 1.20, 1.20, 1.20 }
+var.ring_focus_inner_radii  =   { 7.00, 7.00, 7.00, 6.50, 6.00, 5.50, 4.75, 4.00 }
+var.ring_focus_pitches      =   { 2.50, 2.50, 2.50, 2.50, 2.50, 2.50, 2.40, 2.40 }
+var.ring_focus_thicknesses  =   { 1.30, 1.30, 1.30, 1.30, 1.30, 1.30, 1.20, 1.20 }
 var.ring_focus_number       =   #var.ring_focus_inner_radii
 
 var.ring_big_pa_num         =   var.ring_focus_pa_num + var.ring_focus_number
 var.ring_big_inner_radius   =   7
-var.ring_big_pitch          =   2.3
-var.ring_big_thickness      =   1.2
-var.ring_big_number         =   5 * 4 - 2
+var.ring_big_pitch          =   2.5
+var.ring_big_thickness      =   1.3
+var.ring_big_number         =   64
 
 var.ring_taper_pa_num       =   var.ring_big_pa_num + var.ring_big_number
-var.ring_taper_inner_radii  =   { 4.50, 3.50, 3.00, 2.75, 2.50, 2.25, 2.00 }
-var.ring_taper_pitches      =   { 2.30, 2.30, 2.30, 2.30, 2.40, 2.30, 2.10 }
-var.ring_taper_thicknesses  =   { 1.20, 1.20, 1.20, 1.20, 1.20, 1.20, 1.10 }
+var.ring_taper_inner_radii  =   { 5.25, 3.75, 2.75, 2.00 }
+var.ring_taper_pitches      =   { 2.50, 2.40, 2.30, 2.10 }
+var.ring_taper_thicknesses  =   { 1.30, 1.20, 1.20, 1.10 }
 var.ring_taper_number       =   #var.ring_taper_inner_radii
 
 var.ring_small_pa_num       =   var.ring_taper_pa_num + var.ring_taper_number
@@ -83,7 +83,7 @@ var.threshold_pa_num        =   var.travel_wave_pa_num + var.travel_wave_length
 var.block_pa_num            =   var.threshold_pa_num + 1
 var.ground_pa_num           =   var.block_pa_num + 1
 
-var.grid_size               =   5e-2
+var.grid_size               =   1e-2
 
 -- calculate the range for cropping potential array; values are in grid units
 local ring_length =   var.ring_big_pitch * var.ring_big_number + var.ring_small_pitch * var.ring_small_number + var.cap_left_gap + var.cap_right_gap
@@ -211,8 +211,8 @@ local function generate_particles(obj, stride)
 end
 
 -- define RF parameters for radial confinement
-local confine_frequency   =   3.73
-local confine_voltage     =   80
+local confine_frequency   =   3.82
+local confine_voltage     =   82
 
 -- generate the confining square-wave RF
 local function generate_confine_rf(freq, amp)
@@ -232,9 +232,9 @@ end
 
 -- define travelling wave parameters for axial transport
 -- the phase is chosen from { 0, ..., wave_length - 1 }
-local lifting_duration = 1e3
-local lifting_voltage  = 2.9
-local lifting_phase    = 0
+local lifting_duration  =   750
+local lifting_voltage   =   2.5
+local lifting_phase     =   2
 
 -- generate the travelling square wave
 local function generate_travel_wave(t, amp, phase)
@@ -257,7 +257,7 @@ local function generate_travel_wave(t, amp, phase)
 end
 
 -- empoly a thresholding potential to bring back in reflected ions
-local threshold_voltage = 2
+local threshold_voltage = 1.3
 
 -- employ another blocking potential to guard the exit gate
 local block_voltage = lifting_voltage
@@ -267,6 +267,7 @@ adjustable _gas_mass_amu    =   4.00260325413   -- helium
 adjustable _temperature_k   =   295             -- room temperature
 adjustable _pressure_pa     =   1e-1            -- set 0 to disable buffer gas
 adjustable _trace_level     =   0               -- don't keep an eye on ion's kinetic energy
+adjustable _trace_skip      =   1               -- don't skip any mean kinetic energy value
 adjustable _mark_collisions =   0               -- don't place a red dot on each collision
 
 -- freeze the random state for reproducible simulation results, set 0 to thaw
@@ -281,8 +282,8 @@ end
 local ion_px_average        =   {}
 local ion_px_equilibrium    =   {}
 local ion_px_check_time     =   {}
-local average_time          =   100 / confine_frequency
-local revisit_interval      =   lifting_duration
+local average_time          =   lifting_duration / 5
+local revisit_interval      =   average_time
 
 -- return true if the ion reaches its equilibrium
 local function get_ion_px_equilibrium()
@@ -302,7 +303,7 @@ end
 -- register the fate of each ion
 local die_from  = {}
 local causes    = {
-        [1]     =   "trapped";
+        [1]     =   "sampling finished";
         [-1]    =   "hitting electrode";
         [-2]    =   "dead in water";
         [-3]    =   "outside workbench";
@@ -322,11 +323,11 @@ waiting_point = waiting_point + var.ring_big_pitch * var.ring_big_number
 for k, ring_taper_pitch in next, var.ring_taper_pitches, nil do waiting_point = waiting_point + ring_taper_pitch end
 waiting_point = waiting_point + var.ring_small_pitch * 1.5
 
--- sample the ion states when it is waiting for ejection
+-- sample the ion states when it has been thermalised
 local next_sample_time
+local sample_px_offset
 local remaining_samples = 300
-local sample_px_offset  = waiting_point - var.ring_small_pitch * 2.5 -- relative to the first 2-mm ring
-local function next_sample_interval() return 100 * simion.rand() / confine_frequency end
+local function next_sample_interval() return 10 * simion.rand() / confine_frequency end
 
 local function sample_ion_state()
     simion.mark()
@@ -337,6 +338,11 @@ local function sample_ion_state()
                         ','..az..','..el..','..ke..",,\n")
 end
 
+-- ending position of the thermalisation region
+local thermalisation_end = var.pipe_left_gap + var.cap_thickness + var.cap_left_gap
+for k, ring_focus_pitch in next, var.ring_focus_pitches, nil do thermalisation_end = thermalisation_end + ring_focus_pitch end
+thermalisation_end = thermalisation_end + var.ring_big_pitch * var.ring_big_number
+
 
 ----------------------------------------------------------------------------------------------------
 ----------                                  Fly particles                                 ----------
@@ -344,44 +350,43 @@ end
 
 function segment.load()
     simion.window.state = "maximized"
-    sim_trajectory_image_control = 3
+    sim_trajectory_image_control = 1
 end
 
 function segment.flym()
-    generate_particles(particle_definition, 30)
+    generate_potential_array(object)
+    generate_particles(particle_definition, 300)
 
-    for n = 42, 84, 7 do
-        var.ring_big_number     =   n
-        var.ring_taper_pa_num   =   var.ring_big_pa_num + n
-        var.ring_small_pa_num   =   var.ring_taper_pa_num + var.ring_taper_number
-        var.cap_pa_num          =   var.ring_small_pa_num + var.ring_small_number
-        var.pipe_pa_num         =   var.cap_pa_num + 2
-
-        ring_length = var.ring_big_pitch * n + var.ring_small_pitch * var.ring_small_number + var.cap_left_gap + var.cap_right_gap
-        for k, ring_focus_pitch in next, var.ring_focus_pitches, nil do ring_length = ring_length + ring_focus_pitch end
-        for k, ring_taper_pitch in next, var.ring_taper_pitches, nil do ring_length = ring_length + ring_taper_pitch end
-        crop_axial_span     =   math.ceil((ring_length + var.cap_thickness * 2 + var.pipe_left_gap) / var.grid_size)
-        crop_range[4]       =   crop_axial_span
-        workbench_bounds.xr =   crop_axial_span * var.grid_size
-        generate_potential_array(object)
-
-        for i = 0, 3 do
-            lifting_phase = i
-            file_id = '_'..n..'_'..i
-            run()
-        end
-    end
+    run()
 end
 
 function segment.initialize_run()
-    file_handler = io.open(("result%s.txt"):format(file_id or ''), 'w')
-    file_handler:write("ion,px,pr,splat\n")
+    file_handler = io.open("particle/ion_guide_thermalisation.txt", 'w')
+    file_handler:write
+[[
+####################################################################################################
+##########      File        :   ion_guide_thermalisation.txt                              ##########
+##########      Author      :   X. Chen                                                   ##########
+##########      Description :   definition of test paticles                               ##########
+##########      Note        :   the following lines follow SIMION .ion format, i.e.,      ##########
+##########                      on each line the comma separated values are               ##########
+##########                      tob, mass, charge, x, y, z, az, el, ke, cwf, color,       ##########
+##########                      where omitted parameters take default values              ##########
+##########      License     :   GNU GPLv3                                                 ##########
+####################################################################################################
+
+
+]]
 
     -- sim_rerun_flym = 0
     -- sim_trajectory_image_control = 0
     -- simion.printer.filename = ("screenshot%s.png"):format(file_id or '')
 
-    if random_seed ~= 0 then simion.seed(random_seed - 1) end
+    if random_seed ~= 0 then
+        simion.seed(random_seed - 1)
+    else
+        simion.seed(math.floor(simion.rand() * 1e4))
+    end
 end
 
 function segment.init_p_values()
@@ -407,30 +412,27 @@ end
 
 function segment.other_actions()
     HS1.segment.other_actions()
-    if ion_time_of_flight > lifting_duration then ion_splat = 1 end
-    if ion_splat ~= 0 then die_from[ion_number] = causes[ion_splat] end
+
+    if next_sample_time == nil then
+        if get_ion_px_equilibrium() then
+            print("reaching equilibrium")
+            next_sample_time = ion_time_of_flight + lifting_duration / 2
+            sample_px_offset = ion_px_equilibrium[ion_number] + var.ring_big_pitch
+        end
+    elseif ion_time_of_flight > next_sample_time then
+            sample_ion_state()
+            next_sample_time  = ion_time_of_flight + next_sample_interval()
+            remaining_samples = remaining_samples - 1
+            if remaining_samples == 0 then ion_splat = 1 end
+    end
 end
 
 function segment.terminate()
     HS1.segment.terminate()
-    local ion_pr_mm = math.sqrt(ion_py_mm^2 + ion_pz_mm^2)
-    file_handler:write( ion_number..','..ion_px_mm..','..ion_pr_mm..','..die_from[ion_number]..'\n' )
 end
 
 function segment.terminate_run()
-    local count_trapped = 0
-    local count_escaped = 0
-    local count_blocked = 0
-    for k, cause in next, die_from, nil do
-        if     cause == "trapped"           then count_trapped = count_trapped + 1
-        elseif cause == "hitting electrode" then count_blocked = count_blocked + 1
-        elseif cause == "outside workbench" then count_escaped = count_escaped + 1 end
-    end
-
-    file_handler:write( "trapped: "..count_trapped..", blocked: "..count_blocked..", escaped: "..count_escaped..'\n' )
     file_handler:close()
-    die_from = {}
-
     -- simion.print_screen()
     -- sim_rerun_flym = 1
 end
