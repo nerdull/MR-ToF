@@ -7,10 +7,12 @@
 
 local IG                    =   _G.shared_table
 
+local ring_focus_number     =   IG.ring_focus_number
 local ring_big_number       =   IG.ring_big_number
 local ring_taper_number     =   IG.ring_taper_number
 local ring_small_number     =   IG.ring_small_number
 
+local ring_focus_pa_num     =   IG.ring_focus_pa_num
 local ring_big_pa_num       =   IG.ring_big_pa_num
 local ring_small_pa_num     =   IG.ring_small_pa_num
 local cap_pa_num            =   IG.cap_pa_num
@@ -19,10 +21,11 @@ local pipe_pa_num           =   IG.pipe_pa_num
 local confine_rf_pa_num     =   IG.confine_rf_pa_num
 local travel_wave_pa_num    =   IG.travel_wave_pa_num
 local travel_wave_length    =   IG.travel_wave_length
+local threshold_pa_num      =   IG.threshold_pa_num
 local block_pa_num          =   IG.block_pa_num
 local ground_pa_num         =   IG.ground_pa_num
 
-local confine_rf_number     =   ring_big_number + ring_taper_number + ring_small_number
+local confine_rf_number     =   ring_focus_number + ring_big_number + ring_taper_number + ring_small_number
 local travel_wave_number    =   ring_big_number + ring_taper_number
 
 -- electrode mapping table
@@ -31,7 +34,7 @@ local electrocombo = {}
 -- stacked rings
 local confine_rf = {}
 for i = 0, confine_rf_number - 1 do
-    confine_rf[ring_big_pa_num + i] = (i%2 == 0) and 1 or -1
+    confine_rf[ring_focus_pa_num + i] = (i%2 == 0) and 1 or -1
 end
 electrocombo[confine_rf_pa_num] = confine_rf
 
@@ -42,6 +45,8 @@ for i = 0, travel_wave_length - 1 do
     end
     electrocombo[travel_wave_pa_num + i] = travel_wave
 end
+
+electrocombo[threshold_pa_num] = { [ring_big_pa_num - 1] = 1 }
 
 electrocombo[block_pa_num] = { [ring_small_pa_num + ring_small_number - 1] = 1 }
 
