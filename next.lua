@@ -47,12 +47,9 @@ var.ring_big_thickness      =   1.3
 var.ring_big_number         =   16
 
 var.ring_taper_pa_num       =   var.ring_big_pa_num + var.ring_big_number
--- var.ring_taper_inner_radii  =   { 5.25, 3.75, 3.00, 2.75, 2.00 }
--- var.ring_taper_pitches      =   { 2.50, 2.40, 2.30, 2.20, 2.10 }
--- var.ring_taper_thicknesses  =   { 1.30, 1.20, 1.20, 1.10, 1.10 }
-var.ring_taper_inner_radii  =   { 2.75, 2.00 }
-var.ring_taper_pitches      =   { 2.20, 2.10 }
-var.ring_taper_thicknesses  =   { 1.10, 1.10 }
+var.ring_taper_inner_radii  =   { 6.50, 5.75, 4.50, 3.00, 2.25, 2.00 }
+var.ring_taper_pitches      =   { 2.50, 2.50, 2.40, 2.30, 2.20, 2.10 }
+var.ring_taper_thicknesses  =   { 1.30, 1.30, 1.20, 1.20, 1.10, 1.10 }
 var.ring_taper_number       =   #var.ring_taper_inner_radii
 
 var.ring_small_pa_num       =   var.ring_taper_pa_num + var.ring_taper_number
@@ -86,7 +83,7 @@ var.threshold_pa_num        =   var.travel_wave_pa_num + var.travel_wave_length
 var.block_pa_num            =   var.threshold_pa_num + 1
 var.ground_pa_num           =   var.block_pa_num + 1
 
-var.grid_size               =   5e-2
+var.grid_size               =   1e-2
 
 -- calculate the range for cropping potential array; values are in grid units
 local ring_length =   var.ring_big_pitch * var.ring_big_number + var.ring_small_pitch * var.ring_small_number + var.cap_left_gap + var.cap_right_gap
@@ -158,8 +155,6 @@ end
 -- spawn a test ion at rest, awaiting being heated by buffer gas
 local spawn_position = var.pipe_left_gap + var.cap_thickness + var.cap_left_gap + var.ring_big_pitch * var.ring_big_number
 for k, ring_focus_pitch in next, var.ring_focus_pitches, nil do spawn_position = spawn_position + ring_focus_pitch end
--- spawn_position = spawn_position + var.ring_taper_pitches[1] + var.ring_taper_pitches[2] + var.ring_taper_pitches[3]
--- spawn_position = spawn_position + var.ring_taper_pitches[4] + var.ring_taper_pitches[5] / 2
 spawn_position = spawn_position + var.ring_taper_pitches[1] + var.ring_taper_pitches[2] / 2
 
 -- specify test particles
@@ -171,7 +166,10 @@ local particle_definition = {
     el          =   0;
     position    =   simion.fly2.vector(spawn_position, 0, 0);
 }
--- local particle_definition   =   "ion_guide_thermalisation" -- alternative
+local particle_definition   =   "ion_guide_thermalisation" -- alternative
+local sample_px_offset      =   var.pipe_left_gap + var.cap_thickness + var.cap_left_gap
+for k, ring_focus_pitch in next, var.ring_focus_pitches, nil do sample_px_offset = sample_px_offset + ring_focus_pitch end
+sample_px_offset            =   sample_px_offset + var.ring_big_pitch * (var.ring_big_number - 2.5)
 
 -- conversion from .ion format to .fly2 format
 local function ion_to_fly2(fname, stride)
@@ -313,7 +311,7 @@ end
 -- register the fate of each ion
 local die_from  = {}
 local causes    = {
-        [1]     =   "released";
+        [1]     =   "stand by";
         [-1]    =   "hitting electrode";
         [-2]    =   "dead in water";
         [-3]    =   "outside workbench";
@@ -335,7 +333,6 @@ waiting_point = waiting_point + var.ring_small_pitch * 1.5
 
 -- sample the ion states when it has been thermalised
 local next_sample_time
-local sample_px_offset
 local remaining_samples = 300
 local function next_sample_interval() return 10 * simion.rand() / confine_frequency end
 
@@ -348,8 +345,13 @@ local function sample_ion_state()
                         ','..az..','..el..','..ke..",,\n")
 end
 
--- counter for released ions
-local count_released = 0
+-- ending position of the transport region
+local transport_end = var.pipe_left_gap + var.cap_thickness + var.cap_left_gap + var.ring_big_pitch * var.ring_big_number
+for k, ring_focus_pitch in next, var.ring_focus_pitches, nil do transport_end = transport_end + ring_focus_pitch end
+for k, ring_taper_pitch in next, var.ring_taper_pitches, nil do transport_end = transport_end + ring_taper_pitch end
+
+-- counter for reflected ions
+local count_reflected
 
 
 ----------------------------------------------------------------------------------------------------
@@ -365,11 +367,7 @@ function segment.flym()
     generate_potential_array(object)
     generate_particles(particle_definition, 10)
 
-    for i = 1, 3 do
-        print("run "..i)
-        run()
-    end
-    print("# released ions: "..count_released)
+    run()
 end
 
 function segment.initialize_run()
@@ -377,6 +375,8 @@ function segment.initialize_run()
     -- sim_rerun_flym = 0
     -- sim_trajectory_image_control = 0
     -- simion.printer.filename = ("screenshot%s.png"):format(file_id or '')
+
+    count_reflected = 0
 
     if random_seed ~= 0 then
         simion.seed(random_seed - 1)
@@ -409,17 +409,25 @@ end
 function segment.other_actions()
     HS1.segment.other_actions()
 
-    if ion_time_of_flight > lifting_duration * 1.1 then
+    if ion_px_mm < sample_px_offset - var.ring_big_pitch * 2.5 then ion_splat = -3 end
+    if get_ion_px_equilibrium() and
+        ion_px_equilibrium[ion_number] < waiting_point + .2 and
+        ion_px_equilibrium[ion_number] > waiting_point - .3 then
         ion_splat = 1
-    elseif ion_time_of_flight > lifting_duration then
-        print("trying to release")
-        if ion_px_mm > spawn_position + 2.5 then
-            ion_splat = 1
-            count_released = count_released + 1
-        end
     end
 
-    if ion_splat ~= 0 then simion.redraw_screen() end
+    if ion_splat ~= 0 then
+        simion.redraw_screen()
+        if ion_splat == 1 then
+            print("ready for ejection")
+        elseif ion_splat == -1 then
+            print("hitting electrode at "..ion_px_mm)
+            count_reflected = count_reflected + 1
+        elseif ion_splat == -3 then
+            print("reflected")
+            count_reflected = count_reflected + 1
+        end
+    end
 end
 
 function segment.terminate()
@@ -427,6 +435,8 @@ function segment.terminate()
 end
 
 function segment.terminate_run()
+    print("# reflected: "..count_reflected)
+
     -- file_handler:close()
     -- simion.print_screen()
     -- sim_rerun_flym = 1
