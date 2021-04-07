@@ -153,9 +153,9 @@ local function generate_potential_array(fname, force, conv)
 end
 
 -- spawn a test ion at rest, awaiting being heated by buffer gas
-local spawn_position = var.pipe_left_gap + var.cap_thickness + var.cap_left_gap + var.ring_big_pitch * var.ring_big_number
+local spawn_position = var.pipe_left_gap + var.cap_thickness + var.cap_left_gap
 for k, ring_focus_pitch in next, var.ring_focus_pitches, nil do spawn_position = spawn_position + ring_focus_pitch end
-spawn_position = spawn_position + var.ring_taper_pitches[1] + var.ring_taper_pitches[2] / 2
+spawn_position = spawn_position + var.ring_big_pitch * (var.ring_big_number - 2.5)
 
 -- specify test particles
 local particle_definition = {
@@ -187,7 +187,7 @@ local function ion_to_fly2(fname, stride)
                     tob         =   tonumber(tob)   or  0;
                     cwf         =   tonumber(cwf)   or  1;
                     color       =   tonumber(color) or  0;
-                    position    =   simion.fly2.vector( tonumber(x) + sample_px_offset, tonumber(y), tonumber(z) );
+                    position    =   simion.fly2.vector( tonumber(x) + spawn_position, tonumber(y), tonumber(z) );
                 }
             end
         end
@@ -308,7 +308,7 @@ end
 -- register the fate of each ion
 local die_from  = {}
 local causes    = {
-        [1]     =   "released";
+        [1]     =   "stand by";
         [-1]    =   "hitting electrode";
         [-2]    =   "dead in water";
         [-3]    =   "outside workbench";
@@ -343,8 +343,8 @@ local function sample_ion_state()
                         ','..az..','..el..','..ke..",,\n")
 end
 
--- counter for released ions
-local count_released = 0
+-- counter for stand-by ions
+local count_standby = 0
 
 
 ----------------------------------------------------------------------------------------------------
@@ -358,13 +358,15 @@ end
 
 function segment.flym()
     generate_potential_array(object)
-    generate_particles(particle_definition, 10)
+    generate_particles(particle_definition)
 
-    for i = 1, 100 do
-        print("run "..i)
-        run()
-    end
-    print("# released ions: "..count_released)
+    run()
+    -- for i = 1, 100 do
+    --     print("run "..i)
+    --     run()
+    -- end
+
+    print("# stand-by ions: "..count_standby)
 end
 
 function segment.initialize_run()
@@ -404,17 +406,28 @@ end
 function segment.other_actions()
     HS1.segment.other_actions()
 
-    if ion_time_of_flight > lifting_duration * 1.1 then
+    if ion_px_mm < spawn_position - var.ring_big_pitch * 2.5 then ion_splat = -3 end
+    if get_ion_px_equilibrium() and
+        ion_px_equilibrium[ion_number] < waiting_point + .2 and
+        ion_px_equilibrium[ion_number] > waiting_point - .3 then
         ion_splat = 1
-    elseif ion_time_of_flight > lifting_duration then
-        print("trying to release")
-        if ion_px_mm > spawn_position + 2.5 then
-            ion_splat = 1
-            count_released = count_released + 1
-        end
+        count_standby = count_standby + 1
     end
 
-    if ion_splat ~= 0 then simion.redraw_screen() end
+    -- if ion_time_of_flight > lifting_duration * 1.1 then
+    --     ion_splat = 1
+    -- elseif ion_time_of_flight > lifting_duration then
+    --     print("trying to release")
+    --     if ion_px_mm > spawn_position + 2.5 then
+    --         ion_splat = 1
+    --         count_released = count_released + 1
+    --     end
+    -- end
+
+    if ion_splat ~= 0 then 
+        simion.redraw_screen()
+        if ion_splat == -1 then print("hit electrode at "..ion_px_mm) end
+    end
 end
 
 function segment.terminate()
