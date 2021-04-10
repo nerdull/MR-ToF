@@ -44,12 +44,12 @@ var.ring_big_pa_num         =   var.ring_focus_pa_num + var.ring_focus_number
 var.ring_big_inner_radius   =   7
 var.ring_big_pitch          =   2.5
 var.ring_big_thickness      =   1.3
-var.ring_big_number         =   16
+var.ring_big_number         =   20
 
 var.ring_taper_pa_num       =   var.ring_big_pa_num + var.ring_big_number
-var.ring_taper_inner_radii  =   { 6.00, 5.00, 3.75, 2.75, 2.25, 2.00 }
-var.ring_taper_pitches      =   { 2.50, 2.40, 2.40, 2.30, 2.20, 2.10 }
-var.ring_taper_thicknesses  =   { 1.30, 1.20, 1.20, 1.20, 1.10, 1.10 }
+var.ring_taper_inner_radii  =   { 5.75, 4.50, 3.50, 2.50, 2.25, 2.00 }
+var.ring_taper_pitches      =   { 2.50, 2.40, 2.30, 2.20, 2.20, 2.10 }
+var.ring_taper_thicknesses  =   { 1.30, 1.20, 1.20, 1.10, 1.10, 1.10 }
 var.ring_taper_number       =   #var.ring_taper_inner_radii
 
 var.ring_small_pa_num       =   var.ring_taper_pa_num + var.ring_taper_number
@@ -155,7 +155,8 @@ end
 -- spawn a test ion at rest, awaiting being heated by buffer gas
 local spawn_position = var.pipe_left_gap + var.cap_thickness + var.cap_left_gap
 for k, ring_focus_pitch in next, var.ring_focus_pitches, nil do spawn_position = spawn_position + ring_focus_pitch end
-spawn_position = spawn_position + var.ring_big_pitch * (var.ring_big_number - 2.5)
+spawn_position = spawn_position + var.ring_big_pitch * var.ring_big_number
+spawn_position = spawn_position + var.ring_taper_pitches[1] + var.ring_taper_pitches[2] + var.ring_taper_pitches[3] + var.ring_taper_pitches[4] + var.ring_taper_pitches[5] + var.ring_taper_pitches[6] / 2
 
 -- specify test particles
 local particle_definition = {
@@ -166,7 +167,7 @@ local particle_definition = {
     el          =   0;
     position    =   simion.fly2.vector(spawn_position, 0, 0);
 }
-local particle_definition   =   "ion_guide_thermalisation" -- alternative
+-- local particle_definition   =   "ion_guide_thermalisation" -- alternative
 
 -- conversion from .ion format to .fly2 format
 local function ion_to_fly2(fname, stride)
@@ -308,7 +309,8 @@ end
 -- register the fate of each ion
 local die_from  = {}
 local causes    = {
-        [1]     =   "stand by";
+        [1]     =   "released";
+        -- [1]     =   "stand by";
         [-1]    =   "hitting electrode";
         [-2]    =   "dead in water";
         [-3]    =   "outside workbench";
@@ -343,8 +345,10 @@ local function sample_ion_state()
                         ','..az..','..el..','..ke..",,\n")
 end
 
--- counter for stand-by ions
-local count_standby = 0
+-- -- counter for stand-by ions
+-- local count_standby = 0
+-- counter for released ions
+local count_released = 0
 
 
 ----------------------------------------------------------------------------------------------------
@@ -360,13 +364,14 @@ function segment.flym()
     generate_potential_array(object)
     generate_particles(particle_definition)
 
-    run()
-    -- for i = 1, 100 do
-    --     print("run "..i)
-    --     run()
-    -- end
+    -- run()
+    for i = 1, 100 do
+        print("run "..i)
+        run()
+    end
 
-    print("# stand-by ions: "..count_standby)
+    -- print("# stand-by ions: "..count_standby)
+    print("# released ions: "..count_released)
 end
 
 function segment.initialize_run()
@@ -406,23 +411,23 @@ end
 function segment.other_actions()
     HS1.segment.other_actions()
 
-    if ion_px_mm < spawn_position - var.ring_big_pitch * 2.5 then ion_splat = -3 end
-    if get_ion_px_equilibrium() and
-        ion_px_equilibrium[ion_number] < waiting_point + .2 and
-        ion_px_equilibrium[ion_number] > waiting_point - .3 then
-        ion_splat = 1
-        count_standby = count_standby + 1
-    end
-
-    -- if ion_time_of_flight > lifting_duration * 1.1 then
+    -- if ion_px_mm < spawn_position - var.ring_big_pitch * 2.5 then ion_splat = -3 end
+    -- if get_ion_px_equilibrium() and
+    --     ion_px_equilibrium[ion_number] < waiting_point + .2 and
+    --     ion_px_equilibrium[ion_number] > waiting_point - .3 then
     --     ion_splat = 1
-    -- elseif ion_time_of_flight > lifting_duration then
-    --     print("trying to release")
-    --     if ion_px_mm > spawn_position + 2.5 then
-    --         ion_splat = 1
-    --         count_released = count_released + 1
-    --     end
+    --     count_standby = count_standby + 1
     -- end
+
+    if ion_time_of_flight > lifting_duration * 1.1 then
+        ion_splat = 1
+    elseif ion_time_of_flight > lifting_duration then
+        print("trying to release")
+        if ion_px_mm > spawn_position + 2.5 then
+            ion_splat = 1
+            count_released = count_released + 1
+        end
+    end
 
     if ion_splat ~= 0 then 
         simion.redraw_screen()
