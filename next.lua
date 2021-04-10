@@ -44,12 +44,12 @@ var.ring_big_pa_num         =   var.ring_focus_pa_num + var.ring_focus_number
 var.ring_big_inner_radius   =   7
 var.ring_big_pitch          =   2.5
 var.ring_big_thickness      =   1.3
-var.ring_big_number         =   84
+var.ring_big_number         =   23
 
 var.ring_taper_pa_num       =   var.ring_big_pa_num + var.ring_big_number
-var.ring_taper_inner_radii  =   { 6.00, 4.75, 3.75, 2.75, 2.25, 2.00 }
-var.ring_taper_pitches      =   { 2.50, 2.40, 2.40, 2.30, 2.20, 2.10 }
-var.ring_taper_thicknesses  =   { 1.30, 1.20, 1.20, 1.20, 1.10, 1.10 }
+var.ring_taper_inner_radii  =   { 5.75, 4.50, 3.50, 2.50, 2.25, 2.00 }
+var.ring_taper_pitches      =   { 2.50, 2.40, 2.30, 2.20, 2.20, 2.10 }
+var.ring_taper_thicknesses  =   { 1.30, 1.20, 1.20, 1.10, 1.10, 1.10 }
 var.ring_taper_number       =   #var.ring_taper_inner_radii
 
 var.ring_small_pa_num       =   var.ring_taper_pa_num + var.ring_taper_number
@@ -152,6 +152,12 @@ local function generate_potential_array(fname, force, conv)
     simion.wb.bounds = workbench_bounds
 end
 
+-- define travelling wave parameters for axial transport
+-- the phase is chosen from { 0, ..., wave_length - 1 }
+local lifting_duration  =   750
+local lifting_voltage   =   2.5
+local lifting_phase     =   0
+
 -- specify test particles
 local particle_definition = {
     mass        =   202.984;
@@ -179,7 +185,7 @@ local function ion_to_fly2(fname, stride)
                     ke          =   tonumber(ke);
                     az          =   tonumber(az);
                     el          =   tonumber(el);
-                    tob         =   tonumber(tob)   or  0;
+                    tob         =   tonumber(tob)   or  4 * lifting_duration * simion.rand();
                     cwf         =   tonumber(cwf)   or  1;
                     color       =   tonumber(color) or  0;
                     position    =   simion.fly2.vector( tonumber(x), tonumber(y), tonumber(z) );
@@ -229,12 +235,6 @@ local function generate_confine_rf(freq, amp)
         frequency   =   freq;
     }
 end
-
--- define travelling wave parameters for axial transport
--- the phase is chosen from { 0, ..., wave_length - 1 }
-local lifting_duration  =   750
-local lifting_voltage   =   2.5
-local lifting_phase     =   0
 
 -- generate the travelling square wave
 local function generate_travel_wave(t, amp, phase)
@@ -359,14 +359,35 @@ function segment.load()
 end
 
 function segment.flym()
-    generate_particles(particle_definition)
-    generate_potential_array(object)
+    if random_seed ~= 0 then
+        simion.seed(random_seed - 1)
+    else
+        simion.seed(math.floor(simion.rand() * 1e4))
+    end
 
-    for i = 0, 3 do
-        lifting_phase = i
-        print("phase "..i)
+    generate_particles(particle_definition)
+
+    file_handler = io.open(("result%s.txt"):format(file_id or ''), 'w')
+
+    for n = 20, 76, 8 do
+        var.ring_big_number     =   n
+        var.ring_taper_pa_num   =   var.ring_big_pa_num + n
+        var.ring_small_pa_num   =   var.ring_taper_pa_num + var.ring_taper_number
+        var.cap_pa_num          =   var.ring_small_pa_num + var.ring_small_number
+        var.pipe_pa_num         =   var.cap_pa_num + 2
+
+        ring_length = var.ring_big_pitch * n + var.ring_small_pitch * var.ring_small_number + var.cap_left_gap + var.cap_right_gap
+        for k, ring_focus_pitch in next, var.ring_focus_pitches, nil do ring_length = ring_length + ring_focus_pitch end
+        for k, ring_taper_pitch in next, var.ring_taper_pitches, nil do ring_length = ring_length + ring_taper_pitch end
+        crop_axial_span     =   math.ceil((ring_length + var.cap_thickness * 2 + var.pipe_left_gap) / var.grid_size)
+        crop_range[4]       =   crop_axial_span
+        workbench_bounds.xr =   crop_axial_span * var.grid_size
+        generate_potential_array(object)
+
         run()
     end
+
+    file_handler:close()
 end
 
 function segment.initialize_run()
@@ -375,18 +396,12 @@ function segment.initialize_run()
     count_escaped   =   0
     count_blocked   =   0
 
-    -- file_handler    =   io.open(("result%s.txt"):format(file_id or ''), 'w')
-    -- file_handler:write("ion,px,pr,splat\n")
+    file_handler:write("# rings "..var.ring_big_number..'\n')
 
     -- sim_rerun_flym = 0
     -- sim_trajectory_image_control = 0
     -- simion.printer.filename = ("screenshot%s.png"):format(file_id or '')
 
-    if random_seed ~= 0 then
-        simion.seed(random_seed - 1)
-    else
-        simion.seed(math.floor(simion.rand() * 1e4))
-    end
 end
 
 function segment.init_p_values()
@@ -414,7 +429,7 @@ function segment.other_actions()
     HS1.segment.other_actions()
 
     if get_ion_px_equilibrium(0) then ion_splat = 1 end
-    if ion_splat == -1 then print("hit electrode at "..ion_px_mm) end
+    if ion_splat == -1 then file_handler:write("hit electrode at "..ion_px_mm..'\n') end
     if ion_splat == -3 then
         if ion_px_mm < var.pipe_left_gap then ion_splat = 2 else ion_splat = 3 end
     end
@@ -437,9 +452,8 @@ function segment.terminate_run()
         elseif cause == "hitting electrode" then count_blocked      =   count_blocked   + 1 end
     end
 
-    print("trapped: "..count_trapped..", reflected: "..count_reflected..", escaped: "..count_escaped..", blocked: "..count_blocked)
-    -- file_handler:write( "trapped: "..count_trapped..", blocked: "..count_blocked..", escaped: "..count_escaped..'\n' )
-    -- file_handler:close()
+    file_handler:write("trapped: "..count_trapped..", reflected: "..count_reflected..", escaped: "..count_escaped..", blocked: "..count_blocked..'\n')
+    file_handler:flush()
 
     -- simion.print_screen()
     -- sim_rerun_flym = 1
