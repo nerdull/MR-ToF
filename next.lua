@@ -35,21 +35,21 @@ local object = "ion_guide"
 local var                   =   {}
 
 var.ring_focus_pa_num       =   1
-var.ring_focus_inner_radii  =   { 7.00, 7.00, 7.00, 6.50, 5.75, 5.25, 4.25, 4.00 }
-var.ring_focus_pitches      =   { 2.30, 2.30, 2.30, 2.30, 2.30, 2.30, 2.30, 2.30 }
-var.ring_focus_thicknesses  =   { 1.20, 1.20, 1.20, 1.20, 1.20, 1.20, 1.20, 1.20 }
+var.ring_focus_inner_radii  =   { 7.00, 7.00, 7.00, 6.50, 6.00, 5.50, 4.75, 4.00 }
+var.ring_focus_pitches      =   { 2.50, 2.50, 2.50, 2.50, 2.50, 2.50, 2.40, 2.40 }
+var.ring_focus_thicknesses  =   { 1.30, 1.30, 1.30, 1.30, 1.30, 1.30, 1.20, 1.20 }
 var.ring_focus_number       =   #var.ring_focus_inner_radii
 
 var.ring_big_pa_num         =   var.ring_focus_pa_num + var.ring_focus_number
 var.ring_big_inner_radius   =   7
-var.ring_big_pitch          =   2.3
-var.ring_big_thickness      =   1.2
-var.ring_big_number         =   5 * 4 - 2
+var.ring_big_pitch          =   2.5
+var.ring_big_thickness      =   1.3
+var.ring_big_number         =   60
 
 var.ring_taper_pa_num       =   var.ring_big_pa_num + var.ring_big_number
-var.ring_taper_inner_radii  =   { 4.50, 3.50, 3.00, 2.75, 2.50, 2.25, 2.00 }
-var.ring_taper_pitches      =   { 2.30, 2.30, 2.30, 2.30, 2.40, 2.30, 2.10 }
-var.ring_taper_thicknesses  =   { 1.20, 1.20, 1.20, 1.20, 1.20, 1.20, 1.10 }
+var.ring_taper_inner_radii  =   { 5.75, 4.50, 3.50, 2.50, 2.25, 2.00 }
+var.ring_taper_pitches      =   { 2.50, 2.40, 2.30, 2.20, 2.20, 2.10 }
+var.ring_taper_thicknesses  =   { 1.30, 1.20, 1.20, 1.10, 1.10, 1.10 }
 var.ring_taper_number       =   #var.ring_taper_inner_radii
 
 var.ring_small_pa_num       =   var.ring_taper_pa_num + var.ring_taper_number
@@ -83,7 +83,7 @@ var.threshold_pa_num        =   var.travel_wave_pa_num + var.travel_wave_length
 var.block_pa_num            =   var.threshold_pa_num + 1
 var.ground_pa_num           =   var.block_pa_num + 1
 
-var.grid_size               =   5e-2
+var.grid_size               =   1e-2
 
 -- calculate the range for cropping potential array; values are in grid units
 local ring_length =   var.ring_big_pitch * var.ring_big_number + var.ring_small_pitch * var.ring_small_number + var.cap_left_gap + var.cap_right_gap
@@ -152,6 +152,50 @@ local function generate_potential_array(fname, force, conv)
     simion.wb.bounds = workbench_bounds
 end
 
+-- define RF parameters for radial confinement
+local confine_frequency   =   3.82
+local confine_voltage     =   82
+
+-- generate the confining square-wave RF
+local function generate_confine_rf(freq, amp)
+    local wav = WAV_C.waveforms {
+        WAV_C.electrode(var.confine_rf_pa_num) { WAV_C.lines {
+            { time  =   0           ,   potential   =   amp };
+            { time  =   1/freq * 1/2,   potential   =   amp };
+            { time  =   1/freq * 1/2,   potential   =  -amp };
+            { time  =   1/freq      ,   potential   =  -amp };
+        }};
+    }
+    WAV_C.install {
+        waves       =   wav;
+        frequency   =   freq;
+    }
+end
+
+-- define travelling wave parameters for axial transport
+local lifting_duration  =   750
+local lifting_voltage   =   2.5
+
+-- generate the travelling square wave
+local function generate_travel_wave(t, amp, phase)
+    local wav = {}
+    for i = 0, var.travel_wave_length - 1 do
+        local j = (i + (phase or 0) ) % var.travel_wave_length
+        wav[#wav+1] = WAV_T.electrode(var.travel_wave_pa_num + j) { WAV_T.lines {
+            { time  =   0                         , potential   =   0   };
+            { time  =   t *  i                    , potential   =   0   };
+            { time  =   t *  i                    , potential   =   amp };
+            { time  =   t * (i + 1)               , potential   =   amp };
+            { time  =   t * (i + 1)               , potential   =   0   };
+            { time  =   t * var.travel_wave_length, potential   =   0   };
+        }}
+    end
+    WAV_T.install {
+        waves       =   WAV_T.waveforms(wav);
+        frequency   =   1/t * 1/4;
+    }
+end
+
 -- specify test particles
 local particle_definition = {
     mass        =   202.984;
@@ -179,7 +223,7 @@ local function ion_to_fly2(fname, stride)
                     ke          =   tonumber(ke);
                     az          =   tonumber(az);
                     el          =   tonumber(el);
-                    tob         =   tonumber(tob)   or  0;
+                    tob         =   tonumber(tob)   or  4 * lifting_duration * simion.rand();
                     cwf         =   tonumber(cwf)   or  1;
                     color       =   tonumber(color) or  0;
                     position    =   simion.fly2.vector( tonumber(x), tonumber(y), tonumber(z) );
@@ -210,54 +254,8 @@ local function generate_particles(obj, stride)
     debug.getregistry()[key] = fly2
 end
 
--- define RF parameters for radial confinement
-local confine_frequency   =   3.73
-local confine_voltage     =   80
-
--- generate the confining square-wave RF
-local function generate_confine_rf(freq, amp)
-    local wav = WAV_C.waveforms {
-        WAV_C.electrode(var.confine_rf_pa_num) { WAV_C.lines {
-            { time  =   0           ,   potential   =   amp };
-            { time  =   1/freq * 1/2,   potential   =   amp };
-            { time  =   1/freq * 1/2,   potential   =  -amp };
-            { time  =   1/freq      ,   potential   =  -amp };
-        }};
-    }
-    WAV_C.install {
-        waves       =   wav;
-        frequency   =   freq;
-    }
-end
-
--- define travelling wave parameters for axial transport
--- the phase is chosen from { 0, ..., wave_length - 1 }
-local lifting_duration = 1e3
-local lifting_voltage  = 2.9
-local lifting_phase    = 0
-
--- generate the travelling square wave
-local function generate_travel_wave(t, amp, phase)
-    local wav = {}
-    for i = 0, var.travel_wave_length - 1 do
-        local j = (i + (phase or 0) ) % var.travel_wave_length
-        wav[#wav+1] = WAV_T.electrode(var.travel_wave_pa_num + j) { WAV_T.lines {
-            { time  =   0                         , potential   =   0   };
-            { time  =   t *  i                    , potential   =   0   };
-            { time  =   t *  i                    , potential   =   amp };
-            { time  =   t * (i + 1)               , potential   =   amp };
-            { time  =   t * (i + 1)               , potential   =   0   };
-            { time  =   t * var.travel_wave_length, potential   =   0   };
-        }}
-    end
-    WAV_T.install {
-        waves       =   WAV_T.waveforms(wav);
-        frequency   =   1/t * 1/4;
-    }
-end
-
 -- empoly a thresholding potential to bring back in reflected ions
-local threshold_voltage = 2
+local threshold_voltage = 1.3
 
 -- employ another blocking potential to guard the exit gate
 local block_voltage = lifting_voltage
@@ -267,6 +265,7 @@ adjustable _gas_mass_amu    =   4.00260325413   -- helium
 adjustable _temperature_k   =   295             -- room temperature
 adjustable _pressure_pa     =   1e-1            -- set 0 to disable buffer gas
 adjustable _trace_level     =   0               -- don't keep an eye on ion's kinetic energy
+adjustable _trace_skip      =   1               -- don't skip any mean kinetic energy value
 adjustable _mark_collisions =   0               -- don't place a red dot on each collision
 
 -- freeze the random state for reproducible simulation results, set 0 to thaw
@@ -281,16 +280,16 @@ end
 local ion_px_average        =   {}
 local ion_px_equilibrium    =   {}
 local ion_px_check_time     =   {}
-local average_time          =   100 / confine_frequency
-local revisit_interval      =   lifting_duration
+local average_time          =   lifting_duration / 15
+local revisit_interval      =   average_time
 
 -- return true if the ion reaches its equilibrium
-local function get_ion_px_equilibrium()
+local function get_ion_px_equilibrium(decimal)
     local average_factor        =   ion_time_step / average_time
     ion_px_average[ion_number]  =   average_factor * ion_px_mm + (1 - average_factor) * (ion_px_average[ion_number] or ion_px_mm)
     if ion_time_of_flight - (ion_px_check_time[ion_number] or 0) < revisit_interval then return end
 
-    local ion_px_average_round = round(ion_px_average[ion_number], 1)
+    local ion_px_average_round = round(ion_px_average[ion_number], decimal or 1)
     if ion_px_equilibrium[ion_number] ~= ion_px_average_round then
         ion_px_equilibrium[ion_number] = ion_px_average_round
         ion_px_check_time[ion_number]  = ion_time_of_flight
@@ -348,35 +347,23 @@ function segment.load()
 end
 
 function segment.flym()
+    if random_seed ~= 0 then
+        simion.seed(random_seed - 1)
+    else
+        simion.seed(math.floor(simion.rand() * 1e4))
+    end
+
     generate_potential_array(object)
-    generate_particles(particle_definition, 300)
+    generate_particles(particle_definition)
 
     run()
 end
 
 function segment.initialize_run()
-    file_handler = io.open("particle/ion_guide_ejection.txt", 'w')
-    file_handler:write
-[[
-####################################################################################################
-##########      File        :   ion_guide_ejection.txt                                    ##########
-##########      Author      :   X. Chen                                                   ##########
-##########      Description :   definition of test paticles                               ##########
-##########      Note        :   the following lines follow SIMION .ion format, i.e.,      ##########
-##########                      on each line the comma separated values are               ##########
-##########                      tob, mass, charge, x, y, z, az, el, ke, cwf, color,       ##########
-##########                      where omitted parameters take default values              ##########
-##########      License     :   GNU GPLv3                                                 ##########
-####################################################################################################
-
-
-]]
-
+    -- file_handler = io.open(("result%s.txt"):format(file_id or ''), 'w')
     -- sim_rerun_flym = 0
     -- sim_trajectory_image_control = 0
     -- simion.printer.filename = ("screenshot%s.png"):format(file_id or '')
-
-    if random_seed ~= 0 then simion.seed(random_seed - 1) end
 end
 
 function segment.init_p_values()
@@ -386,7 +373,7 @@ function segment.init_p_values()
         [var.ground_pa_num]     =   0;
     }
     generate_confine_rf(confine_frequency, confine_voltage)
-    generate_travel_wave(lifting_duration, lifting_voltage, lifting_phase)
+    generate_travel_wave(lifting_duration, lifting_voltage)
 end
 
 function segment.tstep_adjust()
@@ -403,24 +390,16 @@ end
 function segment.other_actions()
     HS1.segment.other_actions()
 
-    if next_sample_time == nil then
-        if get_ion_px_equilibrium()
-            and ion_px_equilibrium[ion_number] < waiting_point + .2
-            and ion_px_equilibrium[ion_number] > waiting_point - .3 then
-            next_sample_time = ion_time_of_flight + next_sample_interval()
-        end
-    else
-        if ion_time_of_flight > next_sample_time then
-            sample_ion_state()
-            next_sample_time  = ion_time_of_flight + next_sample_interval()
-            remaining_samples = remaining_samples - 1
-            if remaining_samples == 0 then ion_splat = 1 end
-        end
+    if get_ion_px_equilibrium()
+        and ion_px_equilibrium[ion_number] < waiting_point + .2
+        and ion_px_equilibrium[ion_number] > waiting_point - .3
+        then ion_splat = 1
     end
 
-    -- if ion_splat ~= 0 then
-    --     die_from[ion_number] = causes[ion_splat]
-    -- end
+    if ion_splat ~= 0 then
+        simion.redraw_screen()
+        die_from[ion_number] = causes[ion_splat]
+    end
 end
 
 function segment.terminate()
@@ -428,7 +407,7 @@ function segment.terminate()
 end
 
 function segment.terminate_run()
-    file_handler:close()
+    -- file_handler:close()
     -- simion.print_screen()
     -- sim_rerun_flym = 1
 end
