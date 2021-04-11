@@ -10,6 +10,7 @@
 ----------                          [charge]    =   e                                     ----------
 ----------                          [voltage]   =   V                                     ----------
 ----------                          [energy]    =   eV                                    ----------
+----------                          [e-field]   =   V/mm                                  ----------
 ----------                          [angle]     =   °                                     ----------
 ----------                          [pressure]  =   Pa                                    ----------
 ----------      License     :   GNU GPLv3                                                 ----------
@@ -336,6 +337,36 @@ local function sample_ion_state()
                         ','..az..','..el..','..ke..",,\n")
 end
 
+-- region of interest for export of pseudopotential
+local roi_axial_min = var.pipe_left_gap + var.cap_thickness + var.cap_left_gap
+for k, ring_focus_pitch in next, var.ring_focus_pitches, nil do roi_axial_min = roi_axial_min + ring_focus_pitch end
+roi_axial_min = roi_axial_min + var.ring_big_pitch * (var.ring_big_number - 2)
+local roi_axial_max = roi_axial_min + var.ring_big_pitch * 2
+for k, ring_taper_pitch in next, var.ring_taper_pitches, nil do roi_axial_max = roi_axial_max + ring_taper_pitch end
+roi_axial_max = roi_axial_max + var.ring_small_pitch * 2
+local roi_radial_span = 8
+
+-- write the pseudopotential array of the region of interest to disk
+local function export_pseudopotential_array(xmin, xmax, yspan)
+    file_handler:write( "# "..(xmax - xmin)..' '..yspan..' '..var.grid_size..'\n' )
+    local inst = simion.wb.instances[1]
+    inst.pa:fast_adjust { [var.confine_rf_pa_num] = 1e1 }
+    local imin  =   math.ceil(xmin  / var.grid_size)
+    local imax  =   math.ceil(xmax  / var.grid_size)
+    local jspan =   math.ceil(yspan / var.grid_size)
+    for j = 0, jspan do
+        for i = imin, imax do
+            local ex, ey, ez = inst.pa:field_vc(i, j, 0)
+            ex = ex / var.grid_size
+            ey = ey / var.grid_size
+            ez = ez / var.grid_size
+            local phi = ex^2 + ey^2 + ez^2
+            file_handler:write(phi..' ')
+        end
+        file_handler:write('\n')
+    end
+end
+
 
 ----------------------------------------------------------------------------------------------------
 ----------                                  Fly particles                                 ----------
@@ -354,13 +385,14 @@ function segment.flym()
     end
 
     generate_potential_array(object)
-    generate_particles(particle_definition)
+    -- generate_particles(particle_definition)
 
-    run()
+    file_handler = io.open("tapering_rings_pseudopotential_map.txt", 'w')
+    export_pseudopotential_array(roi_axial_min, roi_axial_max, roi_radial_span)
+    file_handler:close()
 end
 
 function segment.initialize_run()
-    -- file_handler = io.open(("result%s.txt"):format(file_id or ''), 'w')
     -- sim_rerun_flym = 0
     -- sim_trajectory_image_control = 0
     -- simion.printer.filename = ("screenshot%s.png"):format(file_id or '')
@@ -407,7 +439,6 @@ function segment.terminate()
 end
 
 function segment.terminate_run()
-    -- file_handler:close()
     -- simion.print_screen()
     -- sim_rerun_flym = 1
 end
