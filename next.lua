@@ -34,46 +34,63 @@ local object = "ion_guide"
 -- define the potential array number and dimensions of each component
 local var                   =   {}
 
+var.dimension_tolerance     =   0
+var.position_tolerance      =   0
+
+var.radius_tolerance        =   -var.dimension_tolerance
+var.spacing_tolerance       =   var.dimension_tolerance
+var.thickness_tolerance     =   var.dimension_tolerance
+
 var.ring_focus_pa_num       =   1
 var.ring_focus_inner_radii  =   { 7.00, 7.00, 7.00, 6.50, 6.00, 5.50, 4.75, 4.00 }
 var.ring_focus_pitches      =   { 2.50, 2.50, 2.50, 2.50, 2.50, 2.50, 2.40, 2.40 }
 var.ring_focus_thicknesses  =   { 1.30, 1.30, 1.30, 1.30, 1.30, 1.30, 1.20, 1.20 }
 var.ring_focus_number       =   #var.ring_focus_inner_radii
+for i = 1, var.ring_focus_number do
+    var.ring_focus_inner_radii[i] = var.ring_focus_inner_radii[i] + var.radius_tolerance
+    var.ring_focus_pitches[i] = var.ring_focus_pitches[i] + var.spacing_tolerance + var.thickness_tolerance
+    var.ring_focus_thicknesses[i] = var.ring_focus_thicknesses[i] + var.thickness_tolerance
+end
 
 var.ring_big_pa_num         =   var.ring_focus_pa_num + var.ring_focus_number
-var.ring_big_inner_radius   =   7
-var.ring_big_pitch          =   2.5
-var.ring_big_thickness      =   1.3
-var.ring_big_number         =   23
+var.ring_big_inner_radius   =   7 + var.radius_tolerance
+var.ring_big_pitch          =   2.5 + var.spacing_tolerance + var.thickness_tolerance
+var.ring_big_thickness      =   1.3 + var.thickness_tolerance
+var.ring_big_number         =   60
 
 var.ring_taper_pa_num       =   var.ring_big_pa_num + var.ring_big_number
 var.ring_taper_inner_radii  =   { 5.75, 4.50, 3.50, 2.50, 2.25, 2.00 }
 var.ring_taper_pitches      =   { 2.50, 2.40, 2.30, 2.20, 2.20, 2.10 }
 var.ring_taper_thicknesses  =   { 1.30, 1.20, 1.20, 1.10, 1.10, 1.10 }
 var.ring_taper_number       =   #var.ring_taper_inner_radii
+for i = 1, var.ring_taper_number do
+    var.ring_taper_inner_radii[i] = var.ring_taper_inner_radii[i] + var.radius_tolerance
+    var.ring_taper_pitches[i] = var.ring_taper_pitches[i] + var.spacing_tolerance + var.thickness_tolerance
+    var.ring_taper_thicknesses[i] = var.ring_taper_thicknesses[i] + var.thickness_tolerance
+end
 
 var.ring_small_pa_num       =   var.ring_taper_pa_num + var.ring_taper_number
-var.ring_small_inner_radius =   2
-var.ring_small_pitch        =   2.1
-var.ring_small_thickness    =   1.1
+var.ring_small_inner_radius =   2 + var.radius_tolerance
+var.ring_small_pitch        =   2.1 + var.spacing_tolerance + var.thickness_tolerance
+var.ring_small_thickness    =   1.1 + var.thickness_tolerance
 var.ring_small_number       =   4
 
 var.ring_blend              =   .5
 var.ring_outer_radius       =   15
 
 var.cap_pa_num              =   var.ring_small_pa_num + var.ring_small_number
-var.cap_thickness           =   .5
-var.cap_blend               =   var.cap_thickness / 2
-var.cap_left_gap            =   var.cap_thickness - (var.ring_focus_pitches[1] - var.ring_focus_thicknesses[1]) / 2
+var.cap_thickness           =   .5 + var.thickness_tolerance
+var.cap_blend               =   .25
+var.cap_left_gap            =   var.cap_thickness - var.thickness_tolerance + var.spacing_tolerance - (var.ring_focus_pitches[1] - var.ring_focus_thicknesses[1]) / 2
 var.cap_left_inner_radius   =   var.ring_focus_inner_radii[1]
-var.cap_right_gap           =   var.cap_thickness - (var.ring_small_pitch - var.ring_small_thickness) / 2
+var.cap_right_gap           =   var.cap_thickness - var.thickness_tolerance + var.spacing_tolerance - (var.ring_small_pitch - var.ring_small_thickness) / 2
 var.cap_right_inner_radius  =   var.ring_small_inner_radius
 var.cap_outer_radius        =   var.ring_outer_radius
 
 var.pipe_pa_num             =   var.cap_pa_num + 2
 var.pipe_inner_radius       =   50
 var.pipe_thickness          =   2
-var.pipe_left_gap           =   15
+var.pipe_left_gap           =   15 + var.position_tolerance
 var.pipe_right_gap          =   5
 
 var.confine_rf_pa_num       =   1
@@ -153,10 +170,8 @@ local function generate_potential_array(fname, force, conv)
 end
 
 -- define travelling wave parameters for axial transport
--- the phase is chosen from { 0, ..., wave_length - 1 }
 local lifting_duration  =   750
 local lifting_voltage   =   2.5
-local lifting_phase     =   0
 
 -- specify test particles
 local particle_definition = {
@@ -366,28 +381,11 @@ function segment.flym()
     end
 
     generate_particles(particle_definition)
+    generate_potential_array(object)
 
-    file_handler = io.open(("result%s.txt"):format(file_id or ''), 'w')
-
-    for n = 20, 76, 8 do
-        var.ring_big_number     =   n
-        var.ring_taper_pa_num   =   var.ring_big_pa_num + n
-        var.ring_small_pa_num   =   var.ring_taper_pa_num + var.ring_taper_number
-        var.cap_pa_num          =   var.ring_small_pa_num + var.ring_small_number
-        var.pipe_pa_num         =   var.cap_pa_num + 2
-
-        ring_length = var.ring_big_pitch * n + var.ring_small_pitch * var.ring_small_number + var.cap_left_gap + var.cap_right_gap
-        for k, ring_focus_pitch in next, var.ring_focus_pitches, nil do ring_length = ring_length + ring_focus_pitch end
-        for k, ring_taper_pitch in next, var.ring_taper_pitches, nil do ring_length = ring_length + ring_taper_pitch end
-        crop_axial_span     =   math.ceil((ring_length + var.cap_thickness * 2 + var.pipe_left_gap) / var.grid_size)
-        crop_range[4]       =   crop_axial_span
-        workbench_bounds.xr =   crop_axial_span * var.grid_size
-        generate_potential_array(object)
-
-        run()
-    end
-
-    file_handler:close()
+    -- file_handler = io.open(("result%s.txt"):format(file_id or ''), 'w')
+    run()
+    -- file_handler:close()
 end
 
 function segment.initialize_run()
@@ -396,12 +394,9 @@ function segment.initialize_run()
     count_escaped   =   0
     count_blocked   =   0
 
-    file_handler:write("# rings "..var.ring_big_number..'\n')
-
     -- sim_rerun_flym = 0
     -- sim_trajectory_image_control = 0
     -- simion.printer.filename = ("screenshot%s.png"):format(file_id or '')
-
 end
 
 function segment.init_p_values()
@@ -411,7 +406,7 @@ function segment.init_p_values()
         [var.ground_pa_num]     =   0;
     }
     generate_confine_rf(confine_frequency, confine_voltage)
-    generate_travel_wave(lifting_duration, lifting_voltage, lifting_phase)
+    generate_travel_wave(lifting_duration, lifting_voltage)
 end
 
 function segment.tstep_adjust()
@@ -429,7 +424,8 @@ function segment.other_actions()
     HS1.segment.other_actions()
 
     if get_ion_px_equilibrium(0) then ion_splat = 1 end
-    if ion_splat == -1 then file_handler:write("hit electrode at "..ion_px_mm..'\n') end
+    -- if ion_splat == -1 then file_handler:write("hit electrode at "..ion_px_mm..'\n') end
+    if ion_splat == -1 then print("hit electrode at "..ion_px_mm) end
     if ion_splat == -3 then
         if ion_px_mm < var.pipe_left_gap then ion_splat = 2 else ion_splat = 3 end
     end
@@ -452,8 +448,10 @@ function segment.terminate_run()
         elseif cause == "hitting electrode" then count_blocked      =   count_blocked   + 1 end
     end
 
-    file_handler:write("trapped: "..count_trapped..", reflected: "..count_reflected..", escaped: "..count_escaped..", blocked: "..count_blocked..'\n')
-    file_handler:flush()
+    print("trapped: "..count_trapped..", reflected: "..count_reflected..", escaped: "..count_escaped..", blocked: "..count_blocked)
+
+    -- file_handler:write("trapped: "..count_trapped..", reflected: "..count_reflected..", escaped: "..count_escaped..", blocked: "..count_blocked..'\n')
+    -- file_handler:flush()
 
     -- simion.print_screen()
     -- sim_rerun_flym = 1
