@@ -396,7 +396,7 @@ function segment.flym()
     generate_potential_array(object)
     generate_particles(particle_definition)
 
-    file_handler = io.open(("result%s.txt"):format(file_id or ''), 'w')
+    file_handler = io.open(("ejection_voltages%s.txt"):format(file_id or ''), 'w')
     file_handler:write("voltage 1,voltage 2,voltage 3,voltage 4,ion number,y emittance,z emittance\n")
     for v2 = 0, 100, 10 do
         for v1 = v2, 100, 10 do
@@ -430,19 +430,19 @@ function segment.init_p_values()
         [var.eject_pa_num + 3]  =   eject_voltage_4;
         [var.ground_pa_num]     =   0;
     }
-    generate_confine_rf(confine_frequency, confine_voltage)
+    -- generate_confine_rf(confine_frequency, confine_voltage)
     generate_travel_wave(lifting_duration, lifting_voltage, lifting_phase)
 end
 
 function segment.tstep_adjust()
-    WAV_C.segment.tstep_adjust()
+    -- WAV_C.segment.tstep_adjust()
     WAV_T.segment.tstep_adjust()
     HS1.segment.tstep_adjust()
     screen.tstep_adjust()
 end
 
 function segment.fast_adjust()
-    WAV_C.segment.fast_adjust()
+    -- WAV_C.segment.fast_adjust()
     WAV_T.segment.fast_adjust()
 end
 
