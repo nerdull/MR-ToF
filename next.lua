@@ -75,18 +75,26 @@ var.cap_right_gap           =   var.cap_thickness - (var.ring_small_pitch - var.
 var.cap_right_inner_radius  =   var.ring_small_inner_radius
 var.cap_outer_radius        =   var.ring_outer_radius
 
-var.pipe_pa_num             =   var.cap_pa_num + 2
+var.tube_pa_num             =   var.cap_pa_num + 2
+var.tube_inner_radius       =   2
+var.tube_thickness          =   1
+var.tube_blend              =   var.tube_thickness / 2
+var.tube_length             =   10
+
+var.pipe_pa_num             =   var.tube_pa_num + 1
 var.pipe_inner_radius       =   50
 var.pipe_thickness          =   2
 var.pipe_left_gap           =   15
 var.pipe_right_gap          =   15
+var.pipe_extension          =   15
 
 var.confine_rf_pa_num       =   1
 var.travel_wave_pa_num      =   var.confine_rf_pa_num + 1
 var.travel_wave_length      =   4
 var.threshold_pa_num        =   var.travel_wave_pa_num + var.travel_wave_length
 var.eject_pa_num            =   var.threshold_pa_num + 1
-var.ground_pa_num           =   var.eject_pa_num + 4
+var.pulsed_tube_pa_num      =   var.eject_pa_num + 4
+var.ground_pa_num           =   var.pulsed_tube_pa_num + 1
 
 var.grid_size               =   1e-2
 
@@ -95,9 +103,9 @@ local ring_length =   var.ring_big_pitch * var.ring_big_number + var.ring_small_
 for k, ring_focus_pitch in next, var.ring_focus_pitches, nil do ring_length = ring_length + ring_focus_pitch end
 for k, ring_taper_pitch in next, var.ring_taper_pitches, nil do ring_length = ring_length + ring_taper_pitch end
 
-local crop_axial_start  =   math.ceil(( var.pipe_thickness + var.pipe_left_gap )                    / var.grid_size)
-local crop_axial_span   =   math.ceil(( ring_length + var.cap_thickness * 2 + var.pipe_right_gap )  / var.grid_size)
-local crop_radial_span  =   math.ceil(  var.ring_outer_radius                                       / var.grid_size)
+local crop_axial_start  =   math.ceil(( var.pipe_thickness + var.pipe_left_gap )                                                             / var.grid_size)
+local crop_axial_span   =   math.ceil(( ring_length + var.cap_thickness * 2 + var.pipe_right_gap + var.pipe_thickness + var.pipe_extension ) / var.grid_size)
+local crop_radial_span  =   math.ceil(  var.ring_outer_radius                                                                                / var.grid_size)
 local crop_range        =   { crop_axial_start, 0, 0; crop_axial_span, crop_radial_span, 0 }
 
 -- calculate the corresponding workbench bounds
@@ -405,15 +413,13 @@ function segment.flym()
     generate_potential_array(object)
     generate_particles(particle_definition)
 
-    file_handler = io.open(("result%s.txt"):format(file_id or ''), 'w')
-    file_handler:write("voltage 1,voltage 2,voltage 3,voltage 4,ion number,y emittance,z emittance\n")
-    while optimiser:running() do
-        eject_voltage_1, eject_voltage_2, eject_voltage_3, eject_voltage_4 = optimiser:values()
-        print(eject_voltage_1, eject_voltage_2, eject_voltage_3, eject_voltage_4)
-        run()
-        optimiser:result(objective_function)
-    end
-    file_handler:close()
+    -- file_handler = io.open(("result%s.txt"):format(file_id or ''), 'w')
+    -- file_handler:write("voltage 1,voltage 2,voltage 3,voltage 4,ion number,y emittance,z emittance\n")
+
+    eject_voltage_1, eject_voltage_2, eject_voltage_3, eject_voltage_4 = unpack {100, 80, 75, 65}
+    run()
+
+    -- file_handler:close()
 end
 
 function segment.initialize_run()
@@ -469,8 +475,10 @@ function segment.terminate_run()
     emittance_y = 4 * math.sqrt(array_variance(emittance_ycoord) * array_variance(emittance_yprime) - array_variance(emittance_ycoord, emittance_yprime)^2)
     emittance_z = 4 * math.sqrt(array_variance(emittance_zcoord) * array_variance(emittance_zprime) - array_variance(emittance_zcoord, emittance_zprime)^2)
     objective_function = (emittance_y + emittance_z) / 2
-    file_handler:write(table.concat({eject_voltage_1, eject_voltage_2, eject_voltage_3, eject_voltage_4, #emittance_ycoord, emittance_y, emittance_z}, ',')..'\n')
-    file_handler:flush()
+    print(table.concat({eject_voltage_1, eject_voltage_2, eject_voltage_3, eject_voltage_4, #emittance_ycoord, emittance_y, emittance_z, objective_function}, ',')..'\n')
+
+    -- file_handler:write(table.concat({eject_voltage_1, eject_voltage_2, eject_voltage_3, eject_voltage_4, #emittance_ycoord, emittance_y, emittance_z}, ',')..'\n')
+    -- file_handler:flush()
     emittance_ycoord = {}
     emittance_yprime = {}
     emittance_zcoord = {}
