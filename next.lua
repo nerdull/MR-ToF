@@ -413,13 +413,26 @@ function segment.flym()
     generate_potential_array(object)
     generate_particles(particle_definition)
 
-    -- file_handler = io.open(("result%s.txt"):format(file_id or ''), 'w')
-    -- file_handler:write("voltage 1,voltage 2,voltage 3,voltage 4,ion number,y emittance,z emittance\n")
+    file_id = "_without_RF"
+    file_handler = io.open(("ejection_voltages%s.txt"):format(file_id or ''), 'w')
+    file_handler:write("voltage 1,voltage 2,voltage 3,voltage 4,ion number,y emittance,z emittance\n")
 
-    eject_voltage_1, eject_voltage_2, eject_voltage_3, eject_voltage_4 = unpack {100, 80, 75, 65}
-    run()
+    for v2 = 0, 100, 10 do
+        for v1 = v2, v2 + 100, 10 do
+            for v3 = v2, v2 - 100, -10 do
+                for v4 = v3, v3 - 100, -10 do
+                    print(v1, v2, v3, v4)
+                    eject_voltage_1 = v1
+                    eject_voltage_2 = v2
+                    eject_voltage_3 = v3
+                    eject_voltage_4 = v4
+                    run()
+                end
+            end
+        end
+    end
 
-    -- file_handler:close()
+    file_handler:close()
 end
 
 function segment.initialize_run()
@@ -474,11 +487,9 @@ function segment.terminate_run()
 
     emittance_y = 4 * math.sqrt(array_variance(emittance_ycoord) * array_variance(emittance_yprime) - array_variance(emittance_ycoord, emittance_yprime)^2)
     emittance_z = 4 * math.sqrt(array_variance(emittance_zcoord) * array_variance(emittance_zprime) - array_variance(emittance_zcoord, emittance_zprime)^2)
-    objective_function = (emittance_y + emittance_z) / 2
-    print(table.concat({eject_voltage_1, eject_voltage_2, eject_voltage_3, eject_voltage_4, #emittance_ycoord, emittance_y, emittance_z, objective_function}, ',')..'\n')
-
-    -- file_handler:write(table.concat({eject_voltage_1, eject_voltage_2, eject_voltage_3, eject_voltage_4, #emittance_ycoord, emittance_y, emittance_z}, ',')..'\n')
-    -- file_handler:flush()
+    -- objective_function = (emittance_y + emittance_z) / 2
+    file_handler:write(table.concat({eject_voltage_1, eject_voltage_2, eject_voltage_3, eject_voltage_4, #emittance_ycoord, emittance_y, emittance_z}, ',')..'\n')
+    file_handler:flush()
     emittance_ycoord = {}
     emittance_yprime = {}
     emittance_zcoord = {}
