@@ -76,7 +76,7 @@ var.cap_right_inner_radius  =   var.ring_small_inner_radius
 var.cap_outer_radius        =   var.ring_outer_radius
 
 var.tube_pa_num             =   var.cap_pa_num + 2
-var.tube_inner_radius       =   2
+var.tube_inner_radius       =   1.5
 var.tube_thickness          =   1
 var.tube_blend              =   var.tube_thickness / 2
 var.tube_length             =   10
@@ -417,17 +417,16 @@ function segment.flym()
     file_handler = io.open(("ejection_voltages%s.txt"):format(file_id or ''), 'w')
     file_handler:write("voltage 1,voltage 2,voltage 3,voltage 4,ion number,y emittance,z emittance\n")
 
-    for v2 = 0, 100, 10 do
-        for v1 = v2, v2 + 100, 10 do
-            for v3 = v2, v2 - 100, -10 do
-                for v4 = v3, v3 - 100, -10 do
-                    print(v1, v2, v3, v4)
-                    eject_voltage_1 = v1
-                    eject_voltage_2 = v2
-                    eject_voltage_3 = v3
-                    eject_voltage_4 = v4
-                    run()
-                end
+    v2 = 100
+    for v1 = 135, 150, 1 do
+        for v3 = v2, v2 - 10, -1 do
+            for v4 = v3 - 10, v3 - 20, -1 do
+                print(v1, v2, v3, v4)
+                eject_voltage_1 = v1
+                eject_voltage_2 = v2
+                eject_voltage_3 = v3
+                eject_voltage_4 = v4
+                run()
             end
         end
     end
