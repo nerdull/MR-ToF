@@ -188,7 +188,9 @@ end
 -- define travelling wave parameters for axial transport
 local lifting_duration  =   750
 local lifting_voltage   =   2.5
+
 local lifting_phase     =   1
+local ejecting_moment   =   lifting_duration / 2
 
 -- generate the travelling square wave
 local function generate_travel_wave(t, amp, phase)
@@ -259,7 +261,7 @@ local function ion_to_fly2(fname, stride)
                     ke          =   tonumber(ke);
                     az          =   tonumber(az);
                     el          =   tonumber(el);
-                    tob         =   tonumber(tob)   or  lifting_duration / 2;
+                    tob         =   tonumber(tob)   or  ejecting_moment;
                     cwf         =   tonumber(cwf)   or  1;
                     color       =   tonumber(color) or  0;
                     position    =   simion.fly2.vector( tonumber(x) + sample_px_offset, tonumber(y), tonumber(z) );
@@ -354,21 +356,30 @@ simion.printer.scale = 1
 -- ejection voltages for last 4 rings, respectively
 local eject_voltage_1, eject_voltage_2, eject_voltage_3, eject_voltage_4
 
--- set a virtual screen to monitor the beam emittance
+-- set a virtual screen on the right end boundary to monitor the beam emittance
 local emittance_ycoord  =   {}
 local emittance_yprime  =   {}
 local emittance_zcoord  =   {}
 local emittance_zprime  =   {}
 
-local function monitor()
-    k = #emittance_ycoord + 1
+local function monitor_boundary()
+    local k = #emittance_ycoord + 1
     emittance_ycoord[k] =   ion_py_mm
     emittance_yprime[k] =   ion_vy_mm / ion_vx_mm * 1e3
     emittance_zcoord[k] =   ion_pz_mm
     emittance_zprime[k] =   ion_vz_mm / ion_vx_mm * 1e3
 end
 
-local screen = TP(bound_axial_span, 0, 0, 1, 0, 0, monitor)
+local screen_boundary = TP(bound_axial_span, 0, 0, 1, 0, 0, monitor_boundary)
+
+-- set another screen in the middle of the drift tube to measure the time of flight
+local time_of_flight = {}
+
+local function monitor_tube()
+    time_of_flight[#time_of_flight + 1] = ion_time_of_flight - ejecting_moment
+end
+
+local screen_tube = TP(bound_axial_span - var.pipe_extension - var.pipe_thickness / 2, 0, 0, 1, 0, 0, monitor_tube)
 
 -- compute the (co)variance of an array(s)
 local function array_variance(a1, a2)
@@ -413,25 +424,10 @@ function segment.flym()
     generate_potential_array(object)
     generate_particles(particle_definition)
 
-    file_id = "_without_RF"
-    file_handler = io.open(("ejection_voltages%s.txt"):format(file_id or ''), 'w')
-    file_handler:write("voltage 1,voltage 2,voltage 3,voltage 4,ion number,y emittance,z emittance\n")
-
-    v2 = 100
-    for v1 = 140, 150, 1 do
-        for v3 = v2, v2 - 10, -1 do
-            for v4 = v3 - 10, v3 - 20, -1 do
-                print(v1, v2, v3, v4)
-                eject_voltage_1 = v1
-                eject_voltage_2 = v2
-                eject_voltage_3 = v3
-                eject_voltage_4 = v4
-                run()
-            end
-        end
-    end
-
-    file_handler:close()
+    -- file_handler = io.open(("result%s.txt"):format(file_id or ''), 'w')
+    eject_voltage_1, eject_voltage_2, eject_voltage_3, eject_voltage_4 = unpack {145, 100, 100, 85}
+    run()
+    -- file_handler:close()
 end
 
 function segment.initialize_run()
@@ -457,7 +453,8 @@ function segment.tstep_adjust()
     -- WAV_C.segment.tstep_adjust()
     WAV_T.segment.tstep_adjust()
     HS1.segment.tstep_adjust()
-    screen.tstep_adjust()
+    screen_boundary.tstep_adjust()
+    screen_tube.tstep_adjust()
 end
 
 function segment.fast_adjust()
@@ -467,11 +464,12 @@ end
 
 function segment.other_actions()
     HS1.segment.other_actions()
-    screen.other_actions()
+    screen_boundary.other_actions()
+    screen_tube.other_actions()
 
     if ion_px_mm < waiting_point - var.ring_small_pitch then
         ion_splat = 1
-    elseif ion_time_of_flight > lifting_duration * .6 then
+    elseif ion_time_of_flight > ejecting_moment + lifting_duration / 10 then
         ion_splat = 2
     end
 end
@@ -486,11 +484,15 @@ function segment.terminate_run()
 
     emittance_y = 4 * math.sqrt(array_variance(emittance_ycoord) * array_variance(emittance_yprime) - array_variance(emittance_ycoord, emittance_yprime)^2)
     emittance_z = 4 * math.sqrt(array_variance(emittance_zcoord) * array_variance(emittance_zprime) - array_variance(emittance_zcoord, emittance_zprime)^2)
-    -- objective_function = (emittance_y + emittance_z) / 2
-    file_handler:write(table.concat({eject_voltage_1, eject_voltage_2, eject_voltage_3, eject_voltage_4, #emittance_ycoord, emittance_y, emittance_z}, ',')..'\n')
-    file_handler:flush()
+    objective_function = (emittance_y + emittance_z) / 2
+
+    print(table.concat({eject_voltage_1, eject_voltage_2, eject_voltage_3, eject_voltage_4}, ','))
+    print(table.concat({#emittance_ycoord, emittance_y, emittance_z, objective_function}, ','))
+    print(table.concat({#time_of_flight, Stat.array_mean(time_of_flight), Stat.array_min(time_of_flight), Stat.array_max(time_of_flight)}, ','))
+
     emittance_ycoord = {}
     emittance_yprime = {}
     emittance_zcoord = {}
     emittance_zprime = {}
+    time_of_flight   = {}
 end
