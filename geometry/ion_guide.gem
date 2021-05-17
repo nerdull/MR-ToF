@@ -51,11 +51,18 @@ local cap_right_gap             =   IG.cap_right_gap
 local cap_right_inner_radius    =   IG.cap_right_inner_radius
 local cap_outer_radius          =   IG.cap_outer_radius
 
+local tube_pa_num               =   IG.tube_pa_num
+local tube_inner_radius         =   IG.tube_inner_radius
+local tube_thickness            =   IG.tube_thickness
+local tube_blend                =   IG.tube_blend
+local tube_length               =   IG.tube_length
+
 local pipe_pa_num               =   IG.pipe_pa_num
 local pipe_inner_radius         =   IG.pipe_inner_radius
 local pipe_thickness            =   IG.pipe_thickness
 local pipe_left_gap             =   IG.pipe_left_gap
 local pipe_right_gap            =   IG.pipe_right_gap
+local pipe_extension            =   IG.pipe_extension
 
 local grid_size                 =   IG.grid_size
 )
@@ -69,7 +76,8 @@ local ring_taper_anchor     =   ring_big_anchor + ring_big_pitch * ring_big_numb
 local ring_small_anchor     =   ring_taper_anchor
 for k, ring_taper_pitch in next, ring_taper_pitches, nil do ring_small_anchor = ring_small_anchor + ring_taper_pitch end
 local cap_right_anchor      =   ring_small_anchor + ring_small_pitch * ring_small_number + cap_right_gap
-local total_length          =   cap_right_anchor + cap_thickness + pipe_right_gap + pipe_thickness
+local tube_anchor           =   cap_right_anchor + cap_thickness + pipe_right_gap
+local total_length          =   tube_anchor + pipe_thickness * 2 + pipe_extension
 
 local grid_axial_num        =   math.ceil( total_length                        / grid_size) + 1
 local grid_radial_num       =   math.ceil((pipe_inner_radius + pipe_thickness) / grid_size) + 1
@@ -140,9 +148,18 @@ electrode( $(cap_pa_num + 1) ) { locate( $(cap_right_anchor + cap_thickness / 2)
     within { circle(  $(cap_thickness / 2 - cap_blend), $(cap_blend + cap_right_inner_radius), $(cap_blend) )}
 }}}
 
+; pulsed drift tube
+electrode( $(tube_pa_num) ) { locate( $(tube_anchor + pipe_thickness / 2), 0 ) { fill {
+    within { box( -$(tube_length / 2 - tube_blend), $(tube_inner_radius), $(tube_length / 2 - tube_blend), $(tube_inner_radius + tube_thickness) )}
+    within { circle( -$(tube_length / 2 - tube_blend), $(tube_inner_radius + tube_thickness / 2), $(tube_blend) )}
+    within { circle(  $(tube_length / 2 - tube_blend), $(tube_inner_radius + tube_thickness / 2), $(tube_blend) )}
+}}}
+
+
 ; vacuum pipe
 electrode( $(pipe_pa_num) ) { fill {
     within { box( 0, 0, $(pipe_thickness), $(pipe_inner_radius + pipe_thickness) )}
     within { box( 0, $(pipe_inner_radius), $(total_length), $(pipe_inner_radius + pipe_thickness) )}
+    within { box( $(tube_anchor), $(tube_inner_radius + tube_thickness), $(tube_anchor + pipe_thickness), $(pipe_inner_radius + pipe_thickness) )}
     within { box( $(total_length - pipe_thickness), 0, $(total_length), $(pipe_inner_radius + pipe_thickness) )}
 }}
