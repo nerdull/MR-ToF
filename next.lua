@@ -76,7 +76,7 @@ var.cap_right_inner_radius  =   var.ring_small_inner_radius
 var.cap_outer_radius        =   var.ring_outer_radius
 
 var.tube_pa_num             =   var.cap_pa_num + 2
-var.tube_inner_radius       =   1.5
+var.tube_inner_radius       =   1
 var.tube_thickness          =   1
 var.tube_blend              =   var.tube_thickness / 2
 var.tube_length             =   10
@@ -418,7 +418,7 @@ function segment.flym()
     file_handler:write("voltage 1,voltage 2,voltage 3,voltage 4,ion number,y emittance,z emittance\n")
 
     v2 = 100
-    for v1 = 135, 150, 1 do
+    for v1 = 140, 150, 1 do
         for v3 = v2, v2 - 10, -1 do
             for v4 = v3 - 10, v3 - 20, -1 do
                 print(v1, v2, v3, v4)
