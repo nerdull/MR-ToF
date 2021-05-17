@@ -190,8 +190,8 @@ end
 local lifting_duration  =   750
 local lifting_voltage   =   2.5
 
-local lifting_phase     =   1
-local ejecting_moment   =   lifting_duration / 2
+-- local lifting_phase     =   1
+local ejecting_moment   =   {}
 
 -- generate the travelling square wave
 local function generate_travel_wave(t, amp, phase)
@@ -244,8 +244,8 @@ local particle_definition = {
     el          =   17.257;
     position    =   simion.fly2.vector(1e-7, .63, 0);
 }
--- local particle_definition = "ion_guide_injection"
-local particle_definition = "ion_guide_ejection" -- alternative
+local particle_definition = "ion_guide_injection"
+-- local particle_definition = "ion_guide_ejection" -- alternative
 
 -- conversion from .ion format to .fly2 format
 local function ion_to_fly2(fname, stride)
@@ -263,12 +263,12 @@ local function ion_to_fly2(fname, stride)
                     ke          =   tonumber(ke);
                     az          =   tonumber(az);
                     el          =   tonumber(el);
-                    -- tob         =   tonumber(tob)   or  4 * lifting_duration * simion.rand();
-                    tob         =   tonumber(tob)   or  ejecting_moment;
+                    tob         =   tonumber(tob)   or  4 * lifting_duration * simion.rand();
+                    -- tob         =   tonumber(tob)   or  ejecting_moment;
                     cwf         =   tonumber(cwf)   or  1;
                     color       =   tonumber(color) or  0;
-                    -- position    =   simion.fly2.vector( tonumber(x), tonumber(y), tonumber(z) );
-                    position    =   simion.fly2.vector( tonumber(x) + sample_px_offset, tonumber(y), tonumber(z) );
+                    position    =   simion.fly2.vector( tonumber(x), tonumber(y), tonumber(z) );
+                    -- position    =   simion.fly2.vector( tonumber(x) + sample_px_offset, tonumber(y), tonumber(z) );
                 }
             end
         end
@@ -358,7 +358,10 @@ simion.printer.type  = "png"
 simion.printer.scale = 1
 
 -- ejection voltages for last 4 rings, respectively
-local eject_voltage_1, eject_voltage_2, eject_voltage_3, eject_voltage_4
+local eject_voltage_1   =   145
+local eject_voltage_2   =   100
+local eject_voltage_3   =   100
+local eject_voltage_4   =   85
 
 -- set a virtual screen on the right end boundary to monitor the beam emittance
 local emittance_ycoord  =   {}
@@ -410,6 +413,14 @@ local optimiser =   SO {
     precision   =   1;
 }
 
+-- activate ejecting lenses
+function eject_fast_adjust()
+    adj_elect[var.eject_pa_num]     =   eject_voltage_1
+    adj_elect[var.eject_pa_num + 1] =   eject_voltage_2
+    adj_elect[var.eject_pa_num + 2] =   eject_voltage_3
+    adj_elect[var.eject_pa_num + 3] =   eject_voltage_4
+end
+
 -- define parameters of the accelerating pulse
 local pulse_onset       =   3.596
 local pulse_duration    =   5
@@ -417,7 +428,7 @@ local pulse_voltage     =   2.5e3
 
 -- align the pulse edges to the required timings
 function pulse_tstep_adjust()
-    local dt = ion_time_of_flight - ejecting_moment - pulse_onset
+    local dt = ion_time_of_flight - ejecting_moment[ion_number] - pulse_onset
     if  dt >= -pulse_onset and dt <= -1e-11 then
         ion_time_step = math.min(ion_time_step, -dt)
     elseif  dt >= 0 and dt <= pulse_duration - 1e-11 then
@@ -427,7 +438,7 @@ end
 
 -- pulse the drift tube up and down
 function pulse_fast_adjust()
-    local dt = ion_time_of_flight - ejecting_moment - pulse_onset
+    local dt = ion_time_of_flight - ejecting_moment[ion_number] - pulse_onset
     if dt >= 0 and dt <= pulse_duration then
         -- simion.mark()
         adj_elect[var.pulsed_tube_pa_num] = pulse_voltage
@@ -457,7 +468,6 @@ function segment.flym()
     generate_particles(particle_definition)
 
     -- file_handler = io.open(("result%s.txt"):format(file_id or ''), 'w')
-    eject_voltage_1, eject_voltage_2, eject_voltage_3, eject_voltage_4 = unpack {145, 100, 100, 85}
     run()
     -- file_handler:close()
 end
@@ -471,35 +481,43 @@ end
 function segment.init_p_values()
     simion.wb.instances[1].pa:fast_adjust {
         [var.threshold_pa_num]  =   threshold_voltage;
-        [var.eject_pa_num + 0]  =   eject_voltage_1;
-        [var.eject_pa_num + 1]  =   eject_voltage_2;
-        [var.eject_pa_num + 2]  =   eject_voltage_3;
-        [var.eject_pa_num + 3]  =   eject_voltage_4;
+        [var.eject_pa_num + 3]  =   block_voltage;
         [var.ground_pa_num]     =   0;
     }
-    -- generate_confine_rf(confine_frequency, confine_voltage)
+    generate_confine_rf(confine_frequency, confine_voltage)
     generate_travel_wave(lifting_duration, lifting_voltage, lifting_phase)
 end
 
 function segment.tstep_adjust()
-    -- WAV_C.segment.tstep_adjust()
-    WAV_T.segment.tstep_adjust()
     HS1.segment.tstep_adjust()
-    screen_boundary.tstep_adjust()
-    screen_tube.tstep_adjust()
-    pulse_tstep_adjust()
+
+    if ejecting_moment[ion_number] == nil then
+        WAV_C.segment.tstep_adjust()
+        WAV_T.segment.tstep_adjust()
+    else
+        pulse_tstep_adjust()
+    end
 end
 
 function segment.fast_adjust()
-    -- WAV_C.segment.fast_adjust()
-    WAV_T.segment.fast_adjust()
-    pulse_fast_adjust()
+    if ejecting_moment[ion_number] == nil then
+        WAV_C.segment.fast_adjust()
+        WAV_T.segment.fast_adjust()
+    else
+        eject_fast_adjust()
+        pulse_fast_adjust()
+    end
 end
 
 function segment.other_actions()
     HS1.segment.other_actions()
-    screen_boundary.other_actions()
-    screen_tube.other_actions()
+
+    if ejecting_moment[ion_number] == nil
+        and get_ion_px_equilibrium()
+        and ion_px_equilibrium[ion_number] < waiting_point + .2
+        and ion_px_equilibrium[ion_number] > waiting_point - .3
+        then ejecting_moment[ion_number] = ion_time_of_flight
+    end
 end
 
 function segment.terminate()
@@ -509,18 +527,4 @@ end
 function segment.terminate_run()
     -- simion.print_screen()
     -- sim_rerun_flym = 1
-
-    emittance_y = 4 * math.sqrt(array_variance(emittance_ycoord) * array_variance(emittance_yprime) - array_variance(emittance_ycoord, emittance_yprime)^2)
-    emittance_z = 4 * math.sqrt(array_variance(emittance_zcoord) * array_variance(emittance_zprime) - array_variance(emittance_zcoord, emittance_zprime)^2)
-    objective_function = (emittance_y + emittance_z) / 2
-
-    print(table.concat({eject_voltage_1, eject_voltage_2, eject_voltage_3, eject_voltage_4}, ','))
-    print(table.concat({#emittance_ycoord, emittance_y, emittance_z, objective_function}, ','))
-    print(table.concat({#time_of_flight, Stat.array_mean(time_of_flight), Stat.array_min(time_of_flight), Stat.array_max(time_of_flight)}, ','))
-
-    emittance_ycoord    =   {}
-    emittance_yprime    =   {}
-    emittance_zcoord    =   {}
-    emittance_zprime    =   {}
-    time_of_flight      =   {}
 end
