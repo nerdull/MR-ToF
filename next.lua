@@ -86,7 +86,7 @@ var.pipe_inner_radius       =   50
 var.pipe_thickness          =   2
 var.pipe_left_gap           =   15
 var.pipe_right_gap          =   15
-var.pipe_extension          =   10
+var.pipe_extension          =   50
 
 var.confine_rf_pa_num       =   1
 var.travel_wave_pa_num      =   var.confine_rf_pa_num + 1
@@ -190,7 +190,7 @@ end
 local lifting_duration  =   750
 local lifting_voltage   =   2.5
 
--- local lifting_phase     =   1
+local lifting_phase     =   0
 local ejecting_moment   =   {}
 
 -- generate the travelling square wave
@@ -213,38 +213,37 @@ local function generate_travel_wave(t, amp, phase)
     }
 end
 
--- x-position of the waiting point for final ejection
-local waiting_point = var.pipe_left_gap + var.cap_thickness + var.cap_left_gap
-for k, ring_focus_pitch in next, var.ring_focus_pitches, nil do waiting_point = waiting_point + ring_focus_pitch end
-waiting_point = waiting_point + var.ring_big_pitch * var.ring_big_number
-for k, ring_taper_pitch in next, var.ring_taper_pitches, nil do waiting_point = waiting_point + ring_taper_pitch end
-waiting_point = waiting_point + var.ring_small_pitch * 1.5
+-- some useful locations
+local locator = var.pipe_left_gap + var.cap_thickness + var.cap_left_gap
+for k, ring_focus_pitch in next, var.ring_focus_pitches, nil do locator = locator + ring_focus_pitch end
+locator = locator + var.ring_big_pitch * var.ring_big_number
+for k, ring_taper_pitch in next, var.ring_taper_pitches, nil do locator = locator + ring_taper_pitch end
+
+local sample_px_offset  =   locator
+local ejecting_position =   locator + var.ring_small_pitch * 1.5
+local leftmost_position =   locator - var.ring_taper_pitches[var.ring_taper_number] - var.ring_taper_pitches[var.ring_taper_number - 1]
+
+locator = locator + var.ring_small_pitch * var.ring_small_number + var.cap_right_gap + var.cap_thickness
+
+local pipe_right_end    =   locator + var.pipe_right_gap + var.pipe_thickness
+local tube_left_end     =   pipe_right_end - (var.pipe_thickness + var.tube_length)/ 2
 
 -- sample the ion states when it is waiting for ejection
 local next_sample_time
 local remaining_samples = 300
-local sample_px_offset  = waiting_point - var.ring_small_pitch * 2.5 -- relative to the first 2-mm ring
+-- local sample_px_offset  = ejecting_position - var.ring_small_pitch * 2.5 -- relative to the first 2-mm ring
 local function next_sample_interval() return 100 * simion.rand() / confine_frequency end
-
-local function sample_ion_state()
-    simion.mark()
-    local speed, az, el = simion.rect3d_to_polar3d(ion_vx_mm, ion_vy_mm, ion_vz_mm)
-    local ke = simion.speed_to_ke(speed, ion_mass)
-    file_handler:write( ','..ion_mass..','..ion_charge..
-                        ','..ion_px_mm - sample_px_offset..','..ion_py_mm..','..ion_pz_mm..
-                        ','..az..','..el..','..ke..",,\n")
-end
 
 -- specify test particles
 local particle_definition = {
     mass        =   202.984;
     charge      =   1;
-    ke          =   2.673;
+    ke          =   1;
     az          =   0;
-    el          =   17.257;
-    position    =   simion.fly2.vector(1e-7, .63, 0);
+    el          =   60;
+    position    =   simion.fly2.vector(sample_px_offset, 0, 0);
 }
-local particle_definition = "ion_guide_injection"
+-- local particle_definition = "ion_guide_injection"
 -- local particle_definition = "ion_guide_ejection" -- alternative
 
 -- conversion from .ion format to .fly2 format
@@ -388,7 +387,21 @@ local function monitor_tube()
     time_of_flight[#time_of_flight + 1] = ion_time_of_flight - ejecting_moment
 end
 
-local screen_tube = TP(bound_axial_span - var.pipe_extension - var.pipe_thickness / 2, 0, 0, 1, 0, 0, monitor_tube)
+local screen_tube = TP(pipe_right_end - var.pipe_thickness / 2, 0, 0, 1, 0, 0, monitor_tube)
+
+-- sample the ion states after they are accelerated
+local function sample_ion_state()
+    -- simion.mark()
+    local speed, az, el = simion.rect3d_to_polar3d(ion_vx_mm, ion_vy_mm, ion_vz_mm)
+    local ke = simion.speed_to_ke(speed, ion_mass)
+    if ke < 1.6e3 then return end
+    file_handler:write( ion_time_of_flight - ejecting_moment[ion_number]..','..ion_mass..','..ion_charge..
+                        ','..ion_px_mm - pipe_right_end..','..ion_py_mm..','..ion_pz_mm..
+                        ','..az..','..el..','..ke..",,\n")
+    remaining_samples = remaining_samples - 1
+end
+
+local screen_sample = TP(pipe_right_end + 7, 0, 0, 1, 0, 0, sample_ion_state)
 
 -- compute the (co)variance of an array(s)
 local function array_variance(a1, a2)
@@ -414,7 +427,7 @@ local optimiser =   SO {
 }
 
 -- activate ejecting lenses
-function eject_fast_adjust()
+local function eject_fast_adjust()
     adj_elect[var.eject_pa_num]     =   eject_voltage_1
     adj_elect[var.eject_pa_num + 1] =   eject_voltage_2
     adj_elect[var.eject_pa_num + 2] =   eject_voltage_3
@@ -427,7 +440,7 @@ local pulse_duration    =   5
 local pulse_voltage     =   2.5e3
 
 -- align the pulse edges to the required timings
-function pulse_tstep_adjust()
+local function pulse_tstep_adjust()
     local dt = ion_time_of_flight - ejecting_moment[ion_number] - pulse_onset
     if  dt >= -pulse_onset and dt <= -1e-11 then
         ion_time_step = math.min(ion_time_step, -dt)
@@ -437,7 +450,7 @@ function pulse_tstep_adjust()
 end
 
 -- pulse the drift tube up and down
-function pulse_fast_adjust()
+local function pulse_fast_adjust()
     local dt = ion_time_of_flight - ejecting_moment[ion_number] - pulse_onset
     if dt >= 0 and dt <= pulse_duration then
         -- simion.mark()
@@ -467,9 +480,29 @@ function segment.flym()
     generate_potential_array(object)
     generate_particles(particle_definition)
 
-    -- file_handler = io.open(("result%s.txt"):format(file_id or ''), 'w')
-    run()
-    -- file_handler:close()
+    file_handler = io.open(("particle/einzel_lens_injection.txt"):format(file_id or ''), 'w')
+    file_handler:write
+[[
+####################################################################################################
+##########      File        :   einzel_lens_injection.txt                                 ##########
+##########      Author      :   X. Chen                                                   ##########
+##########      Description :   definition of test paticles                               ##########
+##########      Note        :   the following lines follow SIMION .ion format, i.e.,      ##########
+##########                      on each line the comma separated values are               ##########
+##########                      tob, mass, charge, x, y, z, az, el, ke, cwf, color,       ##########
+##########                      where omitted parameters take default values              ##########
+##########      License     :   GNU GPLv3                                                 ##########
+####################################################################################################
+
+
+]]
+
+    while remaining_samples > 0 do
+        print("Run #"..remaining_samples)
+        run()
+    end
+
+    file_handler:close()
 end
 
 function segment.initialize_run()
@@ -489,7 +522,11 @@ function segment.init_p_values()
 end
 
 function segment.tstep_adjust()
-    HS1.segment.tstep_adjust()
+    if ion_px_mm < tube_left_end then
+        HS1.segment.tstep_adjust()
+    else
+        screen_sample.tstep_adjust()
+    end
 
     if ejecting_moment[ion_number] == nil then
         WAV_C.segment.tstep_adjust()
@@ -510,14 +547,20 @@ function segment.fast_adjust()
 end
 
 function segment.other_actions()
-    HS1.segment.other_actions()
+    if ion_px_mm < tube_left_end then
+        HS1.segment.other_actions()
+    else
+        screen_sample.other_actions()
+    end
 
     if ejecting_moment[ion_number] == nil
         and get_ion_px_equilibrium()
-        and ion_px_equilibrium[ion_number] < waiting_point + .2
-        and ion_px_equilibrium[ion_number] > waiting_point - .3
+        and ion_px_equilibrium[ion_number] < ejecting_position + .2
+        and ion_px_equilibrium[ion_number] > ejecting_position - .3
         then ejecting_moment[ion_number] = ion_time_of_flight
     end
+
+    if ion_px_mm < leftmost_position then ion_splat = 1 end
 end
 
 function segment.terminate()
@@ -527,4 +570,11 @@ end
 function segment.terminate_run()
     -- simion.print_screen()
     -- sim_rerun_flym = 1
+
+    file_handler:flush()
+
+    ejecting_moment     =   {}
+    ion_px_average      =   {}
+    ion_px_equilibrium  =   {}
+    ion_px_check_time   =   {}
 end
