@@ -191,7 +191,7 @@ local lifting_duration  =   750
 local lifting_voltage   =   2.5
 
 local lifting_phase     =   0
-local ejecting_moment   =   {}
+local ejecting_moment   =   lifting_duration * 2 - 50
 
 -- generate the travelling square wave
 local function generate_travel_wave(t, amp, phase)
@@ -395,7 +395,7 @@ local function sample_ion_state()
     local speed, az, el = simion.rect3d_to_polar3d(ion_vx_mm, ion_vy_mm, ion_vz_mm)
     local ke = simion.speed_to_ke(speed, ion_mass)
     if ke < 1.6e3 then return end
-    file_handler:write( ion_time_of_flight - ejecting_moment[ion_number]..','..ion_mass..','..ion_charge..
+    file_handler:write( ion_time_of_flight - ejecting_moment..','..ion_mass..','..ion_charge..
                         ','..ion_px_mm - pipe_right_end..','..ion_py_mm..','..ion_pz_mm..
                         ','..az..','..el..','..ke..",,\n")
     remaining_samples = remaining_samples - 1
@@ -441,7 +441,7 @@ local pulse_voltage     =   2.5e3
 
 -- align the pulse edges to the required timings
 local function pulse_tstep_adjust()
-    local dt = ion_time_of_flight - ejecting_moment[ion_number] - pulse_onset
+    local dt = ion_time_of_flight - ejecting_moment - pulse_onset
     if  dt >= -pulse_onset and dt <= -1e-11 then
         ion_time_step = math.min(ion_time_step, -dt)
     elseif  dt >= 0 and dt <= pulse_duration - 1e-11 then
@@ -451,7 +451,7 @@ end
 
 -- pulse the drift tube up and down
 local function pulse_fast_adjust()
-    local dt = ion_time_of_flight - ejecting_moment[ion_number] - pulse_onset
+    local dt = ion_time_of_flight - ejecting_moment - pulse_onset
     if dt >= 0 and dt <= pulse_duration then
         -- simion.mark()
         adj_elect[var.pulsed_tube_pa_num] = pulse_voltage
@@ -528,16 +528,17 @@ function segment.tstep_adjust()
         screen_sample.tstep_adjust()
     end
 
-    if ejecting_moment[ion_number] == nil then
+    if ion_time_of_flight < ejecting_moment then
         WAV_C.segment.tstep_adjust()
         WAV_T.segment.tstep_adjust()
+        ion_time_step = math.min(ion_time_step, ejecting_moment - ion_time_of_flight)
     else
         pulse_tstep_adjust()
     end
 end
 
 function segment.fast_adjust()
-    if ejecting_moment[ion_number] == nil then
+    if ion_time_of_flight < ejecting_moment then
         WAV_C.segment.fast_adjust()
         WAV_T.segment.fast_adjust()
     else
@@ -553,13 +554,6 @@ function segment.other_actions()
         screen_sample.other_actions()
     end
 
-    if ejecting_moment[ion_number] == nil
-        and get_ion_px_equilibrium()
-        and ion_px_equilibrium[ion_number] < ejecting_position + .2
-        and ion_px_equilibrium[ion_number] > ejecting_position - .3
-        then ejecting_moment[ion_number] = ion_time_of_flight
-    end
-
     if ion_px_mm < leftmost_position then ion_splat = 1 end
 end
 
@@ -572,9 +566,4 @@ function segment.terminate_run()
     -- sim_rerun_flym = 1
 
     file_handler:flush()
-
-    ejecting_moment     =   {}
-    ion_px_average      =   {}
-    ion_px_equilibrium  =   {}
-    ion_px_check_time   =   {}
 end
