@@ -1,0 +1,34 @@
+----------------------------------------------------------------------------------------------------
+----------      File        :   einzel_lens.pa+                                           ----------
+----------      Author      :   X. Chen                                                   ----------
+----------      Description :   linear combination of electrodes in "einzel_lens.gem"     ----------
+----------      License     :   GNU GPLv3                                                 ----------
+----------------------------------------------------------------------------------------------------
+
+local EL                        =   _G.shared_table
+
+local cylinder_outer_pa_num     =   EL.cylinder_outer_pa_num
+local cylinder_middle_pa_num    =   EL.cylinder_middle_pa_num
+local tube_pa_num               =   EL.tube_pa_num
+local pipe_pa_num               =   EL.pipe_pa_num
+
+local pulsed_tube_pa_num        =   EL.pulsed_tube_pa_num
+local lens_pa_num               =   EL.lens_pa_num
+local ground_pa_num             =   EL.ground_pa_num
+
+-- electrode mapping table
+local electrocombo = {}
+
+-- pulsed drift tube
+electrocombo[pulsed_tube_pa_num] = { [tube_pa_num] = 1 }
+
+-- einzel lens
+electrocombo[lens_pa_num] = { [cylinder_middle_pa_num] = 1 }
+
+-- vacuum pipe
+electrocombo[ground_pa_num] = {
+    [cylinder_outer_pa_num] = 1;
+    [pipe_pa_num]           = 1;
+}
+
+potential_array { scalable_electrodes = electrocombo }

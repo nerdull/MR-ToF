@@ -1,0 +1,95 @@
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;;;;;;;;      File        :   einzel_lens.gem                                           ;;;;;;;;;;
+;;;;;;;;;;      Author      :   X. Chen                                                   ;;;;;;;;;;
+;;;;;;;;;;      Description :   geometric definition of an einzel lens                    ;;;;;;;;;;
+;;;;;;;;;;      Note        :   it is made of three cylindrical electrodes and housed     ;;;;;;;;;;
+;;;;;;;;;;                      in a CF100 vacuum pipe                                    ;;;;;;;;;;
+;;;;;;;;;;      License     :   GNU GPLv3                                                 ;;;;;;;;;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;;;;;;;;                        Import and calculate parameters                         ;;;;;;;;;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+$(
+local EL                        =   _G.shared_table
+
+local cylinder_inner_radius     =   EL.cylinder_inner_radius
+local cylinder_thickness        =   EL.cylinder_thickness
+local cylinder_blend            =   EL.cylinder_blend
+local cylinder_gap              =   EL.cylinder_gap
+
+local cylinder_outer_pa_num     =   EL.cylinder_outer_pa_num
+local cylinder_outer_length     =   EL.cylinder_outer_length
+
+local cylinder_middle_pa_num    =   EL.cylinder_middle_pa_num
+local cylinder_middle_length    =   EL.cylinder_middle_length
+
+local tube_pa_num               =   EL.tube_pa_num
+local tube_inner_radius         =   EL.tube_inner_radius
+local tube_thickness            =   EL.tube_thickness
+local tube_blend                =   EL.tube_blend
+local tube_length               =   EL.tube_length
+
+local pipe_pa_num               =   EL.pipe_pa_num
+local pipe_inner_radius         =   EL.pipe_inner_radius
+local pipe_thickness            =   EL.pipe_thickness
+local pipe_left_gap             =   EL.pipe_left_gap
+local pipe_right_gap            =   EL.pipe_right_gap
+local pipe_extension            =   EL.pipe_extension
+
+local grid_size                 =   EL.grid_size
+)
+
+$(
+local tube_anchor               =   pipe_extension
+local cylinder_left_anchor      =   tube_anchor + pipe_thickness + pipe_left_gap
+local cylinder_middle_anchor    =   cylinder_left_anchor + cylinder_outer_length + cylinder_gap
+local cylinder_right_anchor     =   cylinder_middle_anchor + cylinder_middle_length + cylinder_gap
+local total_length              =   cylinder_right_anchor + cylinder_outer_length + pipe_right_gap + pipe_thickness
+
+local grid_axial_num            =   math.ceil( total_length                        / grid_size) + 1
+local grid_radial_num           =   math.ceil((pipe_inner_radius + pipe_thickness) / grid_size) + 1
+)
+
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;;;;;;;;                             Define potential array                             ;;;;;;;;;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+pa_define($(grid_axial_num), $(grid_radial_num), 1, cylindrical, y, electrostatic,, $(grid_size), surface=fractional)
+
+; pulsed drift tube
+electrode( $(tube_pa_num) ) { locate( $(tube_anchor + pipe_thickness / 2), $(tube_inner_radius + tube_thickness / 2) ) { fill {
+    within { box( -$(tube_length / 2 - tube_blend), -$(tube_thickness / 2), $(tube_length / 2 - tube_blend), $(tube_thickness / 2) )}
+    within { circle( -$(tube_length / 2 - tube_blend), 0, $(tube_blend) )}
+    within { circle(  $(tube_length / 2 - tube_blend), 0, $(tube_blend) )}
+}}}
+
+; einzel lens
+electrode( $(cylinder_outer_pa_num) ) {
+    locate( $(cylinder_left_anchor + cylinder_outer_length / 2), $(cylinder_inner_radius + cylinder_thickness / 2) ) { fill {
+        within { box( -$(cylinder_outer_length / 2 - cylinder_blend), -$(cylinder_thickness / 2), $(cylinder_outer_length / 2 - cylinder_blend), $(cylinder_thickness / 2) )}
+        within { circle( -$(cylinder_outer_length / 2 - cylinder_blend), 0, $(cylinder_blend) )}
+        within { circle(  $(cylinder_outer_length / 2 - cylinder_blend), 0, $(cylinder_blend) )}
+    }}
+    locate( $(cylinder_right_anchor + cylinder_outer_length / 2), $(cylinder_inner_radius + cylinder_thickness / 2) ) { fill {
+        within { box( -$(cylinder_outer_length / 2 - cylinder_blend), -$(cylinder_thickness / 2), $(cylinder_outer_length / 2 - cylinder_blend), $(cylinder_thickness / 2) )}
+        within { circle( -$(cylinder_outer_length / 2 - cylinder_blend), 0, $(cylinder_blend) )}
+        within { circle(  $(cylinder_outer_length / 2 - cylinder_blend), 0, $(cylinder_blend) )}
+    }}
+}
+
+electrode( $(cylinder_middle_pa_num) ) { locate( $(cylinder_middle_anchor + cylinder_middle_length / 2), $(cylinder_inner_radius + cylinder_thickness / 2) ) { fill {
+    within { box( -$(cylinder_middle_length / 2 - cylinder_blend), -$(cylinder_thickness / 2), $(cylinder_middle_length / 2 - cylinder_blend), $(cylinder_thickness / 2) )}
+    within { circle( -$(cylinder_middle_length / 2 - cylinder_blend), 0, $(cylinder_blend) )}
+    within { circle(  $(cylinder_middle_length / 2 - cylinder_blend), 0, $(cylinder_blend) )}
+}}}
+
+; vacuum pipe
+electrode( $(pipe_pa_num) ) { fill {
+    within { box( $(tube_anchor), $(tube_inner_radius + tube_thickness), $(tube_anchor + pipe_thickness), $(pipe_inner_radius + pipe_thickness) )}
+    within { box( 0, $(pipe_inner_radius), $(total_length), $(pipe_inner_radius + pipe_thickness) )}
+    within { box( $(total_length - pipe_thickness), 0, $(total_length), $(pipe_inner_radius + pipe_thickness) )}
+}}

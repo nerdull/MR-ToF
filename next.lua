@@ -22,9 +22,6 @@ simion.workbench_program()
 -- dependent libraries
 local Stat  =   require "simionx.Statistics"
 
-local WAV_C =   simion.import "library/waveformlib.lua"
-local WAV_T =   simion.import "library/waveformlib.lua"
-local HS1   =   simion.import "library/collision_hs1.lua"
 local TP    =   simion.import "library/testplanelib.lua"
 local SO    =   simion.import "library/simplexoptimiser.lua"
 
@@ -34,48 +31,23 @@ local SO    =   simion.import "library/simplexoptimiser.lua"
 ----------------------------------------------------------------------------------------------------
 
 -- specify the simulating object
-local object = "ion_guide"
+local object = "einzel_lens"
 
 -- define the potential array number and dimensions of each component
 local var                   =   {}
 
-var.ring_focus_pa_num       =   1
-var.ring_focus_inner_radii  =   { 7.00, 7.00, 7.00, 6.50, 6.00, 5.50, 4.75, 4.00 }
-var.ring_focus_pitches      =   { 2.50, 2.50, 2.50, 2.50, 2.50, 2.50, 2.40, 2.40 }
-var.ring_focus_thicknesses  =   { 1.30, 1.30, 1.30, 1.30, 1.30, 1.30, 1.20, 1.20 }
-var.ring_focus_number       =   #var.ring_focus_inner_radii
+var.cylinder_inner_radius   =   10
+var.cylinder_thickness      =   1
+var.cylinder_blend          =   var.cylinder_thickness / 2
+var.cylinder_gap            =   var.cylinder_inner_radius
 
-var.ring_big_pa_num         =   var.ring_focus_pa_num + var.ring_focus_number
-var.ring_big_inner_radius   =   7
-var.ring_big_pitch          =   2.5
-var.ring_big_thickness      =   1.3
-var.ring_big_number         =   60
+var.cylinder_outer_pa_num   =   1
+var.cylinder_outer_length   =   var.cylinder_inner_radius * 2
 
-var.ring_taper_pa_num       =   var.ring_big_pa_num + var.ring_big_number
-var.ring_taper_inner_radii  =   { 5.75, 4.50, 3.50, 2.50, 2.25, 2.00 }
-var.ring_taper_pitches      =   { 2.50, 2.40, 2.30, 2.20, 2.20, 2.10 }
-var.ring_taper_thicknesses  =   { 1.30, 1.20, 1.20, 1.10, 1.10, 1.10 }
-var.ring_taper_number       =   #var.ring_taper_inner_radii
+var.cylinder_middle_pa_num  =   var.cylinder_outer_pa_num + 1
+var.cylinder_middle_length  =   var.cylinder_inner_radius
 
-var.ring_small_pa_num       =   var.ring_taper_pa_num + var.ring_taper_number
-var.ring_small_inner_radius =   2
-var.ring_small_pitch        =   2.1
-var.ring_small_thickness    =   1.1
-var.ring_small_number       =   4
-
-var.ring_blend              =   .5
-var.ring_outer_radius       =   15
-
-var.cap_pa_num              =   var.ring_small_pa_num + var.ring_small_number
-var.cap_thickness           =   .5
-var.cap_blend               =   var.cap_thickness / 2
-var.cap_left_gap            =   var.cap_thickness - (var.ring_focus_pitches[1] - var.ring_focus_thicknesses[1]) / 2
-var.cap_left_inner_radius   =   var.ring_focus_inner_radii[1]
-var.cap_right_gap           =   var.cap_thickness - (var.ring_small_pitch - var.ring_small_thickness) / 2
-var.cap_right_inner_radius  =   var.ring_small_inner_radius
-var.cap_outer_radius        =   var.ring_outer_radius
-
-var.tube_pa_num             =   var.cap_pa_num + 2
+var.tube_pa_num             =   var.cylinder_middle_pa_num + 1
 var.tube_inner_radius       =   1
 var.tube_thickness          =   1
 var.tube_blend              =   var.tube_thickness / 2
@@ -84,29 +56,21 @@ var.tube_length             =   10
 var.pipe_pa_num             =   var.tube_pa_num + 1
 var.pipe_inner_radius       =   50
 var.pipe_thickness          =   2
-var.pipe_left_gap           =   15
-var.pipe_right_gap          =   15
-var.pipe_extension          =   50
+var.pipe_left_gap           =   50
+var.pipe_right_gap          =   50
+var.pipe_extension          =   15
 
-var.confine_rf_pa_num       =   1
-var.travel_wave_pa_num      =   var.confine_rf_pa_num + 1
-var.travel_wave_length      =   4
-var.threshold_pa_num        =   var.travel_wave_pa_num + var.travel_wave_length
-var.eject_pa_num            =   var.threshold_pa_num + 1
-var.pulsed_tube_pa_num      =   var.eject_pa_num + 4
-var.ground_pa_num           =   var.pulsed_tube_pa_num + 1
+var.pulsed_tube_pa_num      =   1
+var.lens_pa_num             =   var.pulsed_tube_pa_num + 1
+var.ground_pa_num           =   var.lens_pa_num + 1
 
-var.grid_size               =   1e-2
+var.grid_size               =   5e-2
 
 -- calculate the range for cropping potential array; values are in grid units
-local ring_length = var.ring_big_pitch * var.ring_big_number + var.ring_small_pitch * var.ring_small_number
-for k, ring_focus_pitch in next, var.ring_focus_pitches, nil do ring_length = ring_length + ring_focus_pitch end
-for k, ring_taper_pitch in next, var.ring_taper_pitches, nil do ring_length = ring_length + ring_taper_pitch end
-ring_length = ring_length + var.cap_left_gap + var.cap_right_gap + var.cap_thickness * 2
-
-local crop_axial_start  =   math.ceil(  var.pipe_thickness                                                                               / var.grid_size)
-local crop_axial_span   =   math.ceil(( ring_length + var.pipe_left_gap + var.pipe_right_gap + var.pipe_thickness + var.pipe_extension ) / var.grid_size)
-local crop_radial_span  =   math.ceil(  var.ring_outer_radius                                                                            / var.grid_size)
+local lens_length = var.cylinder_gap * 2 + var.cylinder_outer_length * 2 + var.cylinder_middle_length
+local crop_axial_start  =   math.ceil(( var.pipe_extension + var.pipe_thickness )              / var.grid_size)
+local crop_axial_span   =   math.ceil(( lens_length + var.pipe_left_gap + var.pipe_right_gap ) / var.grid_size)
+local crop_radial_span  =   math.ceil(( var.cylinder_inner_radius + var.cylinder_thickness )   / var.grid_size)
 local crop_range        =   { crop_axial_start, 0, 0; crop_axial_span, crop_radial_span, 0 }
 
 -- calculate the corresponding workbench bounds
@@ -166,85 +130,8 @@ local function generate_potential_array(fname, force, conv)
     simion.wb.bounds = workbench_bounds
 end
 
--- define RF parameters for radial confinement
-local confine_frequency   =   3.82
-local confine_voltage     =   82
-
--- generate the confining square-wave RF
-local function generate_confine_rf(freq, amp)
-    local wav = WAV_C.waveforms {
-        WAV_C.electrode(var.confine_rf_pa_num) { WAV_C.lines {
-            { time  =   0           ,   potential   =   amp };
-            { time  =   1/freq * 1/2,   potential   =   amp };
-            { time  =   1/freq * 1/2,   potential   =  -amp };
-            { time  =   1/freq      ,   potential   =  -amp };
-        }};
-    }
-    WAV_C.install {
-        waves       =   wav;
-        frequency   =   freq;
-    }
-end
-
--- define travelling wave parameters for axial transport
-local lifting_duration  =   750
-local lifting_voltage   =   2.5
-
-local lifting_phase     =   0
-local ejecting_moment   =   lifting_duration * 2 - 50
-
--- generate the travelling square wave
-local function generate_travel_wave(t, amp, phase)
-    local wav = {}
-    for i = 0, var.travel_wave_length - 1 do
-        local j = (i + (phase or 0) ) % var.travel_wave_length
-        wav[#wav+1] = WAV_T.electrode(var.travel_wave_pa_num + j) { WAV_T.lines {
-            { time  =   0                         , potential   =   0   };
-            { time  =   t *  i                    , potential   =   0   };
-            { time  =   t *  i                    , potential   =   amp };
-            { time  =   t * (i + 1)               , potential   =   amp };
-            { time  =   t * (i + 1)               , potential   =   0   };
-            { time  =   t * var.travel_wave_length, potential   =   0   };
-        }}
-    end
-    WAV_T.install {
-        waves       =   WAV_T.waveforms(wav);
-        frequency   =   1/t * 1/4;
-    }
-end
-
--- some useful locations
-local locator = var.pipe_left_gap + var.cap_thickness + var.cap_left_gap
-for k, ring_focus_pitch in next, var.ring_focus_pitches, nil do locator = locator + ring_focus_pitch end
-locator = locator + var.ring_big_pitch * var.ring_big_number
-for k, ring_taper_pitch in next, var.ring_taper_pitches, nil do locator = locator + ring_taper_pitch end
-
-local sample_px_offset  =   locator
-local ejecting_position =   locator + var.ring_small_pitch * 1.5
-local leftmost_position =   locator - var.ring_taper_pitches[var.ring_taper_number] - var.ring_taper_pitches[var.ring_taper_number - 1]
-
-locator = locator + var.ring_small_pitch * var.ring_small_number + var.cap_right_gap + var.cap_thickness
-
-local pipe_right_end    =   locator + var.pipe_right_gap + var.pipe_thickness
-local tube_left_end     =   pipe_right_end - (var.pipe_thickness + var.tube_length)/ 2
-
--- sample the ion states when it is waiting for ejection
-local next_sample_time
-local remaining_samples = 300
--- local sample_px_offset  = ejecting_position - var.ring_small_pitch * 2.5 -- relative to the first 2-mm ring
-local function next_sample_interval() return 100 * simion.rand() / confine_frequency end
-
 -- specify test particles
-local particle_definition = {
-    mass        =   202.984;
-    charge      =   1;
-    ke          =   1;
-    az          =   0;
-    el          =   60;
-    position    =   simion.fly2.vector(sample_px_offset, 0, 0);
-}
--- local particle_definition = "ion_guide_injection"
--- local particle_definition = "ion_guide_ejection" -- alternative
+local particle_definition = "einzel_lens_injection"
 
 -- conversion from .ion format to .fly2 format
 local function ion_to_fly2(fname, stride)
@@ -262,12 +149,10 @@ local function ion_to_fly2(fname, stride)
                     ke          =   tonumber(ke);
                     az          =   tonumber(az);
                     el          =   tonumber(el);
-                    tob         =   tonumber(tob)   or  4 * lifting_duration * simion.rand();
-                    -- tob         =   tonumber(tob)   or  ejecting_moment;
+                    tob         =   tonumber(tob);
                     cwf         =   tonumber(cwf)   or  1;
                     color       =   tonumber(color) or  0;
                     position    =   simion.fly2.vector( tonumber(x), tonumber(y), tonumber(z) );
-                    -- position    =   simion.fly2.vector( tonumber(x) + sample_px_offset, tonumber(y), tonumber(z) );
                 }
             end
         end
@@ -295,55 +180,13 @@ local function generate_particles(obj, stride)
     debug.getregistry()[key] = fly2
 end
 
--- empoly a thresholding potential to bring back in reflected ions
-local threshold_voltage = 1.3
-
--- employ another blocking potential to guard the exit gate
-local block_voltage = lifting_voltage
-
--- ion-neutral collisional parameters
-adjustable _gas_mass_amu    =   4.00260325413   -- helium
-adjustable _temperature_k   =   295             -- room temperature
-adjustable _pressure_pa     =   1e-1            -- set 0 to disable buffer gas
-adjustable _trace_level     =   0               -- don't keep an eye on ion's kinetic energy
-adjustable _trace_skip      =   1               -- don't skip any mean kinetic energy value
-adjustable _mark_collisions =   0               -- don't place a red dot on each collision
-
--- freeze the random state for reproducible simulation results, set 0 to thaw
-local random_seed = 0
-
--- round off the number to a given decimal place
-local function round(x, decimal)
-    return tonumber(("%%.%df"):format(decimal or 0):format(x))
-end
-
--- get ion's equilibrium position by means of exponetial moving average
-local ion_px_average        =   {}
-local ion_px_equilibrium    =   {}
-local ion_px_check_time     =   {}
-local average_time          =   lifting_duration / 15
-local revisit_interval      =   average_time
-
--- return true if the ion reaches its equilibrium
-local function get_ion_px_equilibrium(decimal)
-    local average_factor        =   ion_time_step / average_time
-    ion_px_average[ion_number]  =   average_factor * ion_px_mm + (1 - average_factor) * (ion_px_average[ion_number] or ion_px_mm)
-    if ion_time_of_flight - (ion_px_check_time[ion_number] or 0) < revisit_interval then return end
-
-    local ion_px_average_round = round(ion_px_average[ion_number], decimal or 1)
-    if ion_px_equilibrium[ion_number] ~= ion_px_average_round then
-        ion_px_equilibrium[ion_number] = ion_px_average_round
-        ion_px_check_time[ion_number]  = ion_time_of_flight
-    else
-        return true
-    end
-end
+-- define the static potentials of electrodes
+local pulse_voltage =   2.5e3
+local lens_voltage  =   1.5e3
 
 -- register the fate of each ion
 local die_from  = {}
 local causes    = {
-        [2]     =   "slow extraction";
-        [1]     =   "flying backward";
         [-1]    =   "hitting electrode";
         [-2]    =   "dead in water";
         [-3]    =   "outside workbench";
@@ -356,17 +199,12 @@ local file_id
 simion.printer.type  = "png"
 simion.printer.scale = 1
 
--- ejection voltages for last 4 rings, respectively
-local eject_voltage_1   =   145
-local eject_voltage_2   =   100
-local eject_voltage_3   =   100
-local eject_voltage_4   =   85
-
--- set a virtual screen on the right end boundary to monitor the beam emittance
+-- set a virtual screen on the right end boundary to monitor the beam emittances
 local emittance_ycoord  =   {}
 local emittance_yprime  =   {}
 local emittance_zcoord  =   {}
 local emittance_zprime  =   {}
+local time_of_flight    =   {}
 
 local function monitor_boundary()
     -- simion.mark()
@@ -375,33 +213,10 @@ local function monitor_boundary()
     emittance_yprime[k] =   ion_vy_mm / ion_vx_mm * 1e3
     emittance_zcoord[k] =   ion_pz_mm
     emittance_zprime[k] =   ion_vz_mm / ion_vx_mm * 1e3
+    time_of_flight[k]   =   ion_time_of_flight
 end
 
 local screen_boundary = TP(bound_axial_span, 0, 0, 1, 0, 0, monitor_boundary)
-
--- set another screen in the middle of the drift tube to measure the time of flight
-local time_of_flight = {}
-
-local function monitor_tube()
-    -- simion.mark()
-    time_of_flight[#time_of_flight + 1] = ion_time_of_flight - ejecting_moment
-end
-
-local screen_tube = TP(pipe_right_end - var.pipe_thickness / 2, 0, 0, 1, 0, 0, monitor_tube)
-
--- sample the ion states after they are accelerated
-local function sample_ion_state()
-    -- simion.mark()
-    local speed, az, el = simion.rect3d_to_polar3d(ion_vx_mm, ion_vy_mm, ion_vz_mm)
-    local ke = simion.speed_to_ke(speed, ion_mass)
-    if ke < 1.6e3 then return end
-    file_handler:write( ion_time_of_flight - ejecting_moment..','..ion_mass..','..ion_charge..
-                        ','..ion_px_mm - pipe_right_end..','..ion_py_mm..','..ion_pz_mm..
-                        ','..az..','..el..','..ke..",,\n")
-    remaining_samples = remaining_samples - 1
-end
-
-local screen_sample = TP(pipe_right_end + 7, 0, 0, 1, 0, 0, sample_ion_state)
 
 -- compute the (co)variance of an array(s)
 local function array_variance(a1, a2)
@@ -418,6 +233,21 @@ local function array_variance(a1, a2)
     return sum / #a1
 end
 
+-- sample the ion states after they are accelerated
+local remaining_samples = 300
+
+local function sample_ion_state()
+    -- simion.mark()
+    local speed, az, el = simion.rect3d_to_polar3d(ion_vx_mm, ion_vy_mm, ion_vz_mm)
+    local ke = simion.speed_to_ke(speed, ion_mass)
+    file_handler:write( ion_time_of_flight..','..ion_mass..','..ion_charge..
+                        ','..ion_px_mm..','..ion_py_mm..','..ion_pz_mm..
+                        ','..az..','..el..','..ke..",,\n")
+    remaining_samples = remaining_samples - 1
+end
+
+local screen_sample = TP(bound_axial_span, 0, 0, 1, 0, 0, sample_ion_state)
+
 -- gear up the simplex optimiser
 local objective_function
 local optimiser =   SO {
@@ -425,40 +255,6 @@ local optimiser =   SO {
     step        =   { 5, 5, 5, 5 };
     precision   =   1;
 }
-
--- activate ejecting lenses
-local function eject_fast_adjust()
-    adj_elect[var.eject_pa_num]     =   eject_voltage_1
-    adj_elect[var.eject_pa_num + 1] =   eject_voltage_2
-    adj_elect[var.eject_pa_num + 2] =   eject_voltage_3
-    adj_elect[var.eject_pa_num + 3] =   eject_voltage_4
-end
-
--- define parameters of the accelerating pulse
-local pulse_onset       =   3.596
-local pulse_duration    =   5
-local pulse_voltage     =   2.5e3
-
--- align the pulse edges to the required timings
-local function pulse_tstep_adjust()
-    local dt = ion_time_of_flight - ejecting_moment - pulse_onset
-    if  dt >= -pulse_onset and dt <= -1e-11 then
-        ion_time_step = math.min(ion_time_step, -dt)
-    elseif  dt >= 0 and dt <= pulse_duration - 1e-11 then
-        ion_time_step = math.min(ion_time_step, pulse_duration - dt)
-    end
-end
-
--- pulse the drift tube up and down
-local function pulse_fast_adjust()
-    local dt = ion_time_of_flight - ejecting_moment - pulse_onset
-    if dt >= 0 and dt <= pulse_duration then
-        -- simion.mark()
-        adj_elect[var.pulsed_tube_pa_num] = pulse_voltage
-    else
-        adj_elect[var.pulsed_tube_pa_num] = 0
-    end
-end
 
 
 ----------------------------------------------------------------------------------------------------
@@ -471,41 +267,15 @@ function segment.load()
 end
 
 function segment.flym()
-    if random_seed ~= 0 then
-        simion.seed(random_seed - 1)
-    else
-        simion.seed(math.floor(simion.rand() * 1e4))
-    end
-
     generate_potential_array(object)
     generate_particles(particle_definition)
 
-    file_handler = io.open(("particle/einzel_lens_injection.txt"):format(file_id or ''), 'w')
-    file_handler:write
-[[
-####################################################################################################
-##########      File        :   einzel_lens_injection.txt                                 ##########
-##########      Author      :   X. Chen                                                   ##########
-##########      Description :   definition of test paticles                               ##########
-##########      Note        :   the following lines follow SIMION .ion format, i.e.,      ##########
-##########                      on each line the comma separated values are               ##########
-##########                      tob, mass, charge, x, y, z, az, el, ke, cwf, color,       ##########
-##########                      where omitted parameters take default values              ##########
-##########      License     :   GNU GPLv3                                                 ##########
-####################################################################################################
-
-
-]]
-
-    while remaining_samples > 0 do
-        print("Run #"..remaining_samples)
-        run()
-    end
-
-    file_handler:close()
+    run()
 end
 
 function segment.initialize_run()
+    -- file_handler = io.open(("result%s.txt"):format(file_id or ''), 'w')
+
     -- sim_rerun_flym = 0
     -- sim_trajectory_image_control = 0
     -- simion.printer.filename = ("screenshot%s.png"):format(file_id or '')
@@ -513,57 +283,36 @@ end
 
 function segment.init_p_values()
     simion.wb.instances[1].pa:fast_adjust {
-        [var.threshold_pa_num]  =   threshold_voltage;
-        [var.eject_pa_num + 3]  =   block_voltage;
-        [var.ground_pa_num]     =   0;
+        [var.pulsed_tube_pa_num]    =   pulse_voltage;
+        [var.lens_pa_num]           =   lens_voltage;
+        [var.ground_pa_num]         =   0;
     }
-    generate_confine_rf(confine_frequency, confine_voltage)
-    generate_travel_wave(lifting_duration, lifting_voltage, lifting_phase)
 end
 
 function segment.tstep_adjust()
-    if ion_px_mm < tube_left_end then
-        HS1.segment.tstep_adjust()
-    else
-        screen_sample.tstep_adjust()
-    end
-
-    if ion_time_of_flight < ejecting_moment then
-        WAV_C.segment.tstep_adjust()
-        WAV_T.segment.tstep_adjust()
-        ion_time_step = math.min(ion_time_step, ejecting_moment - ion_time_of_flight)
-    else
-        pulse_tstep_adjust()
-    end
-end
-
-function segment.fast_adjust()
-    if ion_time_of_flight < ejecting_moment then
-        WAV_C.segment.fast_adjust()
-        WAV_T.segment.fast_adjust()
-    else
-        eject_fast_adjust()
-        pulse_fast_adjust()
-    end
+    screen_boundary.tstep_adjust()
 end
 
 function segment.other_actions()
-    if ion_px_mm < tube_left_end then
-        HS1.segment.other_actions()
-    else
-        screen_sample.other_actions()
-    end
-
-    if ion_px_mm < leftmost_position then ion_splat = 1 end
-end
-
-function segment.terminate()
-    HS1.segment.terminate()
+    screen_boundary.other_actions()
 end
 
 function segment.terminate_run()
+    emittance_y = 4 * math.sqrt(array_variance(emittance_ycoord) * array_variance(emittance_yprime) - array_variance(emittance_ycoord, emittance_yprime)^2)
+    emittance_z = 4 * math.sqrt(array_variance(emittance_zcoord) * array_variance(emittance_zprime) - array_variance(emittance_zcoord, emittance_zprime)^2)
+
+    print(table.concat({#emittance_ycoord, emittance_y, emittance_z}, ','))
+    print(table.concat({#time_of_flight, Stat.array_mean(time_of_flight), Stat.array_min(time_of_flight), Stat.array_max(time_of_flight)}, ','))
+
+    emittance_ycoord = {}
+    emittance_yprime = {}
+    emittance_zcoord = {}
+    emittance_zprime = {}
+    time_of_flight   = {}
+
+    -- file_handler:flush()
+    -- file_handler:close()
+
     -- simion.print_screen()
     -- sim_rerun_flym = 1
-
-    file_handler:flush()
 end
