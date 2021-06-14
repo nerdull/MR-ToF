@@ -36,13 +36,13 @@ local object = "einzel_lens"
 -- define the potential array number and dimensions of each component
 local var                   =   {}
 
-var.cylinder_inner_radius   =   10
-var.cylinder_thickness      =   1
+var.cylinder_inner_radius   =   30
+var.cylinder_thickness      =   2
 var.cylinder_blend          =   var.cylinder_thickness / 2
-var.cylinder_gap            =   var.cylinder_inner_radius
+var.cylinder_gap            =   var.cylinder_inner_radius / 2
 
 var.cylinder_outer_pa_num   =   1
-var.cylinder_outer_length   =   var.cylinder_inner_radius * 2
+var.cylinder_outer_length   =   var.cylinder_inner_radius
 
 var.cylinder_middle_pa_num  =   var.cylinder_outer_pa_num + 1
 var.cylinder_middle_length  =   var.cylinder_inner_radius
@@ -56,8 +56,8 @@ var.tube_length             =   10
 var.pipe_pa_num             =   var.tube_pa_num + 1
 var.pipe_inner_radius       =   50
 var.pipe_thickness          =   2
-var.pipe_left_gap           =   50
-var.pipe_right_gap          =   50
+var.pipe_left_gap           =   var.cylinder_inner_radius
+var.pipe_right_gap          =   300 - var.pipe_left_gap - var.cylinder_outer_length * 2 - var.cylinder_gap * 2 - var.cylinder_middle_length
 var.pipe_extension          =   15
 
 var.pulsed_tube_pa_num      =   1
@@ -182,7 +182,7 @@ end
 
 -- define the static potentials of electrodes
 local pulse_voltage =   2.5e3
-local lens_voltage  =   1.5e3
+local lens_voltage  =   2e3
 
 -- register the fate of each ion
 local die_from  = {}
@@ -199,20 +199,20 @@ local file_id
 simion.printer.type  = "png"
 simion.printer.scale = 1
 
--- set a virtual screen on the right end boundary to monitor the beam emittances
+-- set a virtual screen on the right end boundary to monitor the beam kinetic parameters
 local emittance_ycoord  =   {}
 local emittance_yprime  =   {}
 local emittance_zcoord  =   {}
 local emittance_zprime  =   {}
+local radial_size       =   {}
+local axial_angle       =   {}
 local time_of_flight    =   {}
 
 local function monitor_boundary()
     -- simion.mark()
-    local k = #emittance_ycoord + 1
-    emittance_ycoord[k] =   ion_py_mm
-    emittance_yprime[k] =   ion_vy_mm / ion_vx_mm * 1e3
-    emittance_zcoord[k] =   ion_pz_mm
-    emittance_zprime[k] =   ion_vz_mm / ion_vx_mm * 1e3
+    local k = #radial_size + 1
+    radial_size[k]      =   math.sqrt(ion_py_mm^2 + ion_pz_mm^2)
+    axial_angle[k]      =   math.sqrt(ion_vy_mm^2 + ion_vz_mm^2) / ion_vx_mm * 1e3
     time_of_flight[k]   =   ion_time_of_flight
 end
 
@@ -256,7 +256,6 @@ local optimiser =   SO {
     precision   =   1;
 }
 
-
 ----------------------------------------------------------------------------------------------------
 ----------                                  Fly particles                                 ----------
 ----------------------------------------------------------------------------------------------------
@@ -267,15 +266,32 @@ function segment.load()
 end
 
 function segment.flym()
-    generate_potential_array(object)
     generate_particles(particle_definition)
 
-    run()
+    file_handler = io.open(("einzel_lens_parameters%s.txt"):format(file_id or ''), 'w')
+    file_handler:write("start point,outer length,middle length,gap,voltage,ion number,beam size,beam parallelity\n")
+    for plg = var.cylinder_inner_radius - 15, var.cylinder_inner_radius + 45, 15 do var.pipe_left_gap = plg
+        for col = var.cylinder_inner_radius - 5, var.cylinder_inner_radius + 15, 5 do var.cylinder_outer_length = col
+            for cml = var.cylinder_inner_radius - 5, var.cylinder_inner_radius + 15, 5 do var.cylinder_middle_length = cml
+                for cg = var.cylinder_inner_radius - 15, var.cylinder_inner_radius + 5, 5 do var.cylinder_gap = cg
+                    var.pipe_right_gap = 300 - var.pipe_left_gap - var.cylinder_outer_length * 2 - var.cylinder_gap * 2 - var.cylinder_middle_length
+                    generate_potential_array(object)
+                    for lv = 2, 2.5, .1 do lens_voltage = lv * 1e3
+                        run()
+                    end
+                end
+            end
+        end
+    end
+    file_handler:close()
+
+    -- var.pipe_left_gap, var.cylinder_outer_length, var.cylinder_middle_length, var.cylinder_gap, lens_voltage = unpack {15, 25, 45, 20, 2300}
+    -- var.pipe_right_gap = 300 - var.pipe_left_gap - var.cylinder_outer_length * 2 - var.cylinder_gap * 2 - var.cylinder_middle_length
+    -- generate_potential_array(object)
+    -- run()
 end
 
 function segment.initialize_run()
-    -- file_handler = io.open(("result%s.txt"):format(file_id or ''), 'w')
-
     -- sim_rerun_flym = 0
     -- sim_trajectory_image_control = 0
     -- simion.printer.filename = ("screenshot%s.png"):format(file_id or '')
@@ -298,20 +314,18 @@ function segment.other_actions()
 end
 
 function segment.terminate_run()
-    emittance_y = 4 * math.sqrt(array_variance(emittance_ycoord) * array_variance(emittance_yprime) - array_variance(emittance_ycoord, emittance_yprime)^2)
-    emittance_z = 4 * math.sqrt(array_variance(emittance_zcoord) * array_variance(emittance_zprime) - array_variance(emittance_zcoord, emittance_zprime)^2)
+    beam_size, beam_parallelity = Stat.array_mean(radial_size), Stat.array_mean(axial_angle)
 
-    print(table.concat({#emittance_ycoord, emittance_y, emittance_z}, ','))
-    print(table.concat({#time_of_flight, Stat.array_mean(time_of_flight), Stat.array_min(time_of_flight), Stat.array_max(time_of_flight)}, ','))
+    file_handler:write(table.concat({
+        var.pipe_left_gap, var.cylinder_outer_length, var.cylinder_middle_length, var.cylinder_gap, lens_voltage, #radial_size, beam_size, beam_parallelity}, ',')..'\n')
+    file_handler:flush()
 
-    emittance_ycoord = {}
-    emittance_yprime = {}
-    emittance_zcoord = {}
-    emittance_zprime = {}
-    time_of_flight   = {}
+    -- print(table.concat({#radial_size, beam_size, beam_parallelity}, ','))
+    -- print(table.concat({#time_of_flight, Stat.array_mean(time_of_flight), Stat.array_min(time_of_flight), Stat.array_max(time_of_flight)}, ','))
 
-    -- file_handler:flush()
-    -- file_handler:close()
+    radial_size     =   {}
+    axial_angle     =   {}
+    time_of_flight  =   {}
 
     -- simion.print_screen()
     -- sim_rerun_flym = 1
