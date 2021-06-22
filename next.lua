@@ -227,7 +227,8 @@ local function monitor_boundary()
     radial_size[k]      =   math.sqrt(ion_py_mm^2 + ion_pz_mm^2)
     axial_angle[k]      =   math.sqrt(ion_vy_mm^2 + ion_vz_mm^2) / ion_vx_mm * 1e3
     time_of_flight[k]   =   ion_time_of_flight
-    -- sample_ion_state()
+    sample_ion_state()
+    ion_vx_mm = -ion_vx_mm
 end
 
 local screen_boundary = TP(bound_axial_span, 0, 0, 1, 0, 0, monitor_boundary)
@@ -255,6 +256,10 @@ local optimiser =   SO {
     precision   =   1;
 }
 
+-- count how many ions would return to the tube if the trajectory is mirrored
+local counter_return = 0
+
+
 ----------------------------------------------------------------------------------------------------
 ----------                                  Fly particles                                 ----------
 ----------------------------------------------------------------------------------------------------
@@ -267,46 +272,46 @@ end
 function segment.flym()
     generate_particles(particle_definition)
 
-    file_handler = io.open(("einzel_lens_full_parameters%s.txt"):format(file_id or ''), 'w')
-    file_handler:write("inner radius,start point,middle length,outer length,gap,voltage,ion number,beam size,beam parallelity\n")
-    for cir = 20, 40, 5 do var.cylinder_inner_radius = cir
-        for plg = 15, var.cylinder_inner_radius + 10, 5 do var.pipe_left_gap = plg
-            for cml = math.floor(var.cylinder_inner_radius * .5), math.floor(var.cylinder_inner_radius * 1.5), 5 do var.cylinder_middle_length = cml
-                for col = math.floor(var.cylinder_inner_radius * .5), var.cylinder_middle_length, 5 do var.cylinder_outer_length = col
-                    for cg = math.floor(var.cylinder_inner_radius * .5), var.cylinder_outer_length, 5 do var.cylinder_gap = cg
-                        var.pipe_right_gap  =   300 - var.pipe_left_gap - var.cylinder_outer_length * 2 - var.cylinder_gap * 2 - var.cylinder_middle_length
-                        crop_radial_span    =   math.ceil((var.cylinder_inner_radius + var.cylinder_thickness) / var.grid_size)
-                        bound_radial_span   =   crop_radial_span * var.grid_size
-                        crop_range[5]       =   crop_radial_span
-                        workbench_bounds.yl =  -bound_radial_span
-                        workbench_bounds.yr =   bound_radial_span
-                        workbench_bounds.zl =  -bound_radial_span
-                        workbench_bounds.zr =   bound_radial_span
-                        generate_potential_array(object)
-                        for lv = 1.5, 2.5, .1 do lens_voltage = lv * 1e3
-                            run()
-                        end
-                    end
-                end
-            end
-        end
-    end
-    file_handler:close()
-
-    -- file_handler = io.open(("einzel_lens_ion_states%s.txt"):format(file_id or ''), 'w')
-    -- file_handler:write("# tob, mass, charge, x, y, z, az, el, ke, cwf, color\n")
-    -- var.cylinder_inner_radius, var.pipe_left_gap, var.cylinder_middle_length, var.cylinder_outer_length, var.cylinder_gap, lens_voltage = unpack {35, 15, 52, 22, 22, 2400}
-    -- var.pipe_right_gap  =   300 - var.pipe_left_gap - var.cylinder_outer_length * 2 - var.cylinder_gap * 2 - var.cylinder_middle_length
-    -- crop_radial_span    =   math.ceil((var.cylinder_inner_radius + var.cylinder_thickness) / var.grid_size)
-    -- bound_radial_span   =   crop_radial_span * var.grid_size
-    -- crop_range[5]       =   crop_radial_span
-    -- workbench_bounds.yl =  -bound_radial_span
-    -- workbench_bounds.yr =   bound_radial_span
-    -- workbench_bounds.zl =  -bound_radial_span
-    -- workbench_bounds.zr =   bound_radial_span
-    -- generate_potential_array(object)
-    -- run()
+    -- file_handler = io.open(("einzel_lens_full_parameters%s.txt"):format(file_id or ''), 'w')
+    -- file_handler:write("inner radius,start point,middle length,outer length,gap,voltage,ion number,beam size,beam parallelity\n")
+    -- for cir = 20, 40, 5 do var.cylinder_inner_radius = cir
+    --     for plg = 15, var.cylinder_inner_radius + 10, 5 do var.pipe_left_gap = plg
+    --         for cml = math.floor(var.cylinder_inner_radius * .5), math.floor(var.cylinder_inner_radius * 1.5), 5 do var.cylinder_middle_length = cml
+    --             for col = math.floor(var.cylinder_inner_radius * .5), var.cylinder_middle_length, 5 do var.cylinder_outer_length = col
+    --                 for cg = math.floor(var.cylinder_inner_radius * .5), var.cylinder_outer_length, 5 do var.cylinder_gap = cg
+    --                     var.pipe_right_gap  =   300 - var.pipe_left_gap - var.cylinder_outer_length * 2 - var.cylinder_gap * 2 - var.cylinder_middle_length
+    --                     crop_radial_span    =   math.ceil((var.cylinder_inner_radius + var.cylinder_thickness) / var.grid_size)
+    --                     bound_radial_span   =   crop_radial_span * var.grid_size
+    --                     crop_range[5]       =   crop_radial_span
+    --                     workbench_bounds.yl =  -bound_radial_span
+    --                     workbench_bounds.yr =   bound_radial_span
+    --                     workbench_bounds.zl =  -bound_radial_span
+    --                     workbench_bounds.zr =   bound_radial_span
+    --                     generate_potential_array(object)
+    --                     for lv = 1.5, 2.5, .1 do lens_voltage = lv * 1e3
+    --                         run()
+    --                     end
+    --                 end
+    --             end
+    --         end
+    --     end
+    -- end
     -- file_handler:close()
+
+    file_handler = io.open(("einzel_lens_ion_states%s.txt"):format(file_id or ''), 'w')
+    file_handler:write("# tob, mass, charge, x, y, z, az, el, ke, cwf, color\n")
+    var.cylinder_inner_radius, var.pipe_left_gap, var.cylinder_middle_length, var.cylinder_outer_length, var.cylinder_gap, lens_voltage = unpack {20, 15, 30, 15, 10, 2400}
+    var.pipe_right_gap  =   300 - var.pipe_left_gap - var.cylinder_outer_length * 2 - var.cylinder_gap * 2 - var.cylinder_middle_length
+    crop_radial_span    =   math.ceil((var.cylinder_inner_radius + var.cylinder_thickness) / var.grid_size)
+    bound_radial_span   =   crop_radial_span * var.grid_size
+    crop_range[5]       =   crop_radial_span
+    workbench_bounds.yl =  -bound_radial_span
+    workbench_bounds.yr =   bound_radial_span
+    workbench_bounds.zl =  -bound_radial_span
+    workbench_bounds.zr =   bound_radial_span
+    generate_potential_array(object)
+    run()
+    file_handler:close()
 end
 
 function segment.initialize_run()
@@ -327,19 +332,33 @@ function segment.tstep_adjust()
     screen_boundary.tstep_adjust()
 end
 
+function segment.fast_adjust()
+    if ion_vx_mm < 0 then
+        adj_elect[var.pulsed_tube_pa_num] = 0
+        -- adj_elect[var.lens_pa_num] = 2380
+    end
+end
+
 function segment.other_actions()
     screen_boundary.other_actions()
+    if ion_splat ~= 0 and ion_px_mm < 1e-7 then
+        local r = math.sqrt(ion_py_mm^2 + ion_pz_mm^2)
+        if r < var.tube_inner_radius then
+            counter_return = counter_return + 1
+        end
+    end
 end
 
 function segment.terminate_run()
     beam_size, beam_parallelity = Stat.array_mean(radial_size), Stat.array_mean(axial_angle)
 
-    file_handler:write(table.concat({var.cylinder_inner_radius, var.pipe_left_gap, var.cylinder_middle_length, var.cylinder_outer_length, var.cylinder_gap,
-                                     lens_voltage, #radial_size, beam_size, beam_parallelity }, ',') .. '\n')
-    file_handler:flush()
+    -- file_handler:write(table.concat({var.cylinder_inner_radius, var.pipe_left_gap, var.cylinder_middle_length, var.cylinder_outer_length, var.cylinder_gap,
+    --                                  lens_voltage, #radial_size, beam_size, beam_parallelity }, ',') .. '\n')
+    -- file_handler:flush()
 
-    -- print(table.concat({#radial_size, beam_size, beam_parallelity}, ','))
-    -- print(table.concat({#time_of_flight, Stat.array_mean(time_of_flight), Stat.array_min(time_of_flight), Stat.array_max(time_of_flight)}, ','))
+    print(table.concat({#radial_size, beam_size, beam_parallelity}, ','))
+    print(table.concat({#time_of_flight, Stat.array_mean(time_of_flight), Stat.array_min(time_of_flight), Stat.array_max(time_of_flight)}, ','))
+    print(counter_return)
 
     radial_size     =   {}
     axial_angle     =   {}
