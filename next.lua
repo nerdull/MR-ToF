@@ -36,7 +36,7 @@ local object = "einzel_lens"
 -- define the potential array number and dimensions of each component
 local var                   =   {}
 
-var.cylinder_inner_radius   =   30
+var.cylinder_inner_radius   =   15
 var.cylinder_thickness      =   2
 var.cylinder_blend          =   var.cylinder_thickness / 2
 var.cylinder_gap            =   var.cylinder_inner_radius / 2
@@ -54,10 +54,10 @@ var.tube_blend              =   var.tube_thickness / 2
 var.tube_length             =   10
 
 var.pipe_pa_num             =   var.tube_pa_num + 1
-var.pipe_inner_radius       =   50
+var.pipe_inner_radius       =   20
 var.pipe_thickness          =   2
 var.pipe_left_gap           =   var.cylinder_inner_radius
-var.pipe_right_gap          =   300 - var.pipe_left_gap - var.cylinder_outer_length * 2 - var.cylinder_gap * 2 - var.cylinder_middle_length
+var.pipe_right_gap          =   244 - var.pipe_left_gap - var.cylinder_outer_length * 2 - var.cylinder_gap * 2 - var.cylinder_middle_length
 var.pipe_extension          =   15
 
 var.pulsed_tube_pa_num      =   1
@@ -270,13 +270,13 @@ function segment.flym()
 
     file_handler = io.open(("einzel_lens_parameters%s.txt"):format(file_id or ''), 'w')
     file_handler:write("start point,outer length,middle length,gap,voltage,ion number,beam size,beam parallelity\n")
-    for plg = var.cylinder_inner_radius - 15, var.cylinder_inner_radius + 45, 15 do var.pipe_left_gap = plg
+    for plg = var.cylinder_inner_radius - 5, var.cylinder_inner_radius + 15, 5 do var.pipe_left_gap = plg
         for col = var.cylinder_inner_radius - 5, var.cylinder_inner_radius + 15, 5 do var.cylinder_outer_length = col
             for cml = var.cylinder_inner_radius - 5, var.cylinder_inner_radius + 15, 5 do var.cylinder_middle_length = cml
-                for cg = var.cylinder_inner_radius - 15, var.cylinder_inner_radius + 5, 5 do var.cylinder_gap = cg
-                    var.pipe_right_gap = 300 - var.pipe_left_gap - var.cylinder_outer_length * 2 - var.cylinder_gap * 2 - var.cylinder_middle_length
+                for cg = var.cylinder_inner_radius - 10, var.cylinder_inner_radius + 20, 5 do var.cylinder_gap = cg
+                    var.pipe_right_gap = 244 - var.pipe_left_gap - var.cylinder_outer_length * 2 - var.cylinder_gap * 2 - var.cylinder_middle_length
                     generate_potential_array(object)
-                    for lv = 2, 2.5, .1 do lens_voltage = lv * 1e3
+                    for lv = 2, 2.6, .1 do lens_voltage = lv * 1e3
                         run()
                     end
                 end
@@ -285,8 +285,8 @@ function segment.flym()
     end
     file_handler:close()
 
-    -- var.pipe_left_gap, var.cylinder_outer_length, var.cylinder_middle_length, var.cylinder_gap, lens_voltage = unpack {15, 25, 45, 20, 2300}
-    -- var.pipe_right_gap = 300 - var.pipe_left_gap - var.cylinder_outer_length * 2 - var.cylinder_gap * 2 - var.cylinder_middle_length
+    -- var.pipe_left_gap, var.cylinder_outer_length, var.cylinder_middle_length, var.cylinder_gap, lens_voltage = unpack {10, 10, 25, 5, 2500}
+    -- var.pipe_right_gap = 244 - var.pipe_left_gap - var.cylinder_outer_length * 2 - var.cylinder_gap * 2 - var.cylinder_middle_length
     -- generate_potential_array(object)
     -- run()
 end
