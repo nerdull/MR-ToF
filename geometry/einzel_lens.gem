@@ -35,19 +35,25 @@ local tube_length               =   EL.tube_length
 local pipe_pa_num               =   EL.pipe_pa_num
 local pipe_inner_radius         =   EL.pipe_inner_radius
 local pipe_thickness            =   EL.pipe_thickness
+local pipe_length               =   EL.pipe_length
 local pipe_left_gap             =   EL.pipe_left_gap
 local pipe_right_gap            =   EL.pipe_right_gap
 local pipe_extension            =   EL.pipe_extension
+
+local iris_radius               =   EL.iris_radius
 
 local grid_size                 =   EL.grid_size
 )
 
 $(
 local tube_anchor               =   pipe_extension
-local cylinder_left_anchor      =   tube_anchor + pipe_thickness + pipe_left_gap
-local cylinder_middle_anchor    =   cylinder_left_anchor + cylinder_outer_length + cylinder_gap
-local cylinder_right_anchor     =   cylinder_middle_anchor + cylinder_middle_length + cylinder_gap
-local total_length              =   cylinder_right_anchor + cylinder_outer_length + pipe_right_gap + pipe_thickness
+local left_lens_left_anchor     =   tube_anchor + pipe_thickness + pipe_left_gap
+local left_lens_middle_anchor   =   left_lens_left_anchor + cylinder_outer_length + cylinder_gap
+local left_lens_right_anchor    =   left_lens_middle_anchor + cylinder_middle_length + cylinder_gap
+local right_lens_right_anchor   =   tube_anchor + pipe_thickness + pipe_length - pipe_right_gap
+local right_lens_middle_anchor  =   right_lens_right_anchor - cylinder_outer_length - cylinder_gap
+local right_lens_left_anchor    =   right_lens_middle_anchor - cylinder_middle_length - cylinder_gap
+local total_length              =   (pipe_extension + pipe_thickness) * 2 + pipe_length
 
 local grid_axial_num            =   math.ceil( total_length                        / grid_size) + 1
 local grid_radial_num           =   math.ceil((pipe_inner_radius + pipe_thickness) / grid_size) + 1
@@ -67,21 +73,41 @@ electrode( $(tube_pa_num) ) { locate( $(tube_anchor + pipe_thickness / 2), $(tub
     within { circle(  $(tube_length / 2 - tube_blend), 0, $(tube_blend) )}
 }}}
 
-; einzel lens
+; left einzel lens
 electrode( $(cylinder_outer_pa_num) ) {
-    locate( $(cylinder_left_anchor + cylinder_outer_length / 2), $(cylinder_inner_radius + cylinder_thickness / 2) ) { fill {
+    locate( $(left_lens_left_anchor + cylinder_outer_length / 2), $(cylinder_inner_radius + cylinder_thickness / 2) ) { fill {
         within { box( -$(cylinder_outer_length / 2 - cylinder_blend), -$(cylinder_thickness / 2), $(cylinder_outer_length / 2 - cylinder_blend), $(cylinder_thickness / 2) )}
         within { circle( -$(cylinder_outer_length / 2 - cylinder_blend), 0, $(cylinder_blend) )}
         within { circle(  $(cylinder_outer_length / 2 - cylinder_blend), 0, $(cylinder_blend) )}
     }}
-    locate( $(cylinder_right_anchor + cylinder_outer_length / 2), $(cylinder_inner_radius + cylinder_thickness / 2) ) { fill {
+    locate( $(left_lens_right_anchor + cylinder_outer_length / 2), $(cylinder_inner_radius + cylinder_thickness / 2) ) { fill {
         within { box( -$(cylinder_outer_length / 2 - cylinder_blend), -$(cylinder_thickness / 2), $(cylinder_outer_length / 2 - cylinder_blend), $(cylinder_thickness / 2) )}
         within { circle( -$(cylinder_outer_length / 2 - cylinder_blend), 0, $(cylinder_blend) )}
         within { circle(  $(cylinder_outer_length / 2 - cylinder_blend), 0, $(cylinder_blend) )}
     }}
 }
 
-electrode( $(cylinder_middle_pa_num) ) { locate( $(cylinder_middle_anchor + cylinder_middle_length / 2), $(cylinder_inner_radius + cylinder_thickness / 2) ) { fill {
+electrode( $(cylinder_middle_pa_num) ) { locate( $(left_lens_middle_anchor + cylinder_middle_length / 2), $(cylinder_inner_radius + cylinder_thickness / 2) ) { fill {
+    within { box( -$(cylinder_middle_length / 2 - cylinder_blend), -$(cylinder_thickness / 2), $(cylinder_middle_length / 2 - cylinder_blend), $(cylinder_thickness / 2) )}
+    within { circle( -$(cylinder_middle_length / 2 - cylinder_blend), 0, $(cylinder_blend) )}
+    within { circle(  $(cylinder_middle_length / 2 - cylinder_blend), 0, $(cylinder_blend) )}
+}}}
+
+; right einzel lens
+electrode( $(cylinder_outer_pa_num + 1) ) {
+    locate( $(right_lens_right_anchor - cylinder_outer_length / 2), $(cylinder_inner_radius + cylinder_thickness / 2) ) { fill {
+        within { box( -$(cylinder_outer_length / 2 - cylinder_blend), -$(cylinder_thickness / 2), $(cylinder_outer_length / 2 - cylinder_blend), $(cylinder_thickness / 2) )}
+        within { circle( -$(cylinder_outer_length / 2 - cylinder_blend), 0, $(cylinder_blend) )}
+        within { circle(  $(cylinder_outer_length / 2 - cylinder_blend), 0, $(cylinder_blend) )}
+    }}
+    locate( $(right_lens_left_anchor - cylinder_outer_length / 2), $(cylinder_inner_radius + cylinder_thickness / 2) ) { fill {
+        within { box( -$(cylinder_outer_length / 2 - cylinder_blend), -$(cylinder_thickness / 2), $(cylinder_outer_length / 2 - cylinder_blend), $(cylinder_thickness / 2) )}
+        within { circle( -$(cylinder_outer_length / 2 - cylinder_blend), 0, $(cylinder_blend) )}
+        within { circle(  $(cylinder_outer_length / 2 - cylinder_blend), 0, $(cylinder_blend) )}
+    }}
+}
+
+electrode( $(cylinder_middle_pa_num + 1) ) { locate( $(right_lens_middle_anchor - cylinder_middle_length / 2), $(cylinder_inner_radius + cylinder_thickness / 2) ) { fill {
     within { box( -$(cylinder_middle_length / 2 - cylinder_blend), -$(cylinder_thickness / 2), $(cylinder_middle_length / 2 - cylinder_blend), $(cylinder_thickness / 2) )}
     within { circle( -$(cylinder_middle_length / 2 - cylinder_blend), 0, $(cylinder_blend) )}
     within { circle(  $(cylinder_middle_length / 2 - cylinder_blend), 0, $(cylinder_blend) )}
@@ -91,5 +117,5 @@ electrode( $(cylinder_middle_pa_num) ) { locate( $(cylinder_middle_anchor + cyli
 electrode( $(pipe_pa_num) ) { fill {
     within { box( $(tube_anchor), $(tube_inner_radius + tube_thickness), $(tube_anchor + pipe_thickness), $(pipe_inner_radius + pipe_thickness) )}
     within { box( 0, $(pipe_inner_radius), $(total_length), $(pipe_inner_radius + pipe_thickness) )}
-    within { box( $(total_length - pipe_thickness), 0, $(total_length), $(pipe_inner_radius + pipe_thickness) )}
+    within { box( $(total_length - pipe_extension - pipe_thickness), $(iris_radius), $(total_length - pipe_extension), $(pipe_inner_radius + pipe_thickness) )}
 }}

@@ -22,13 +22,17 @@ local electrocombo = {}
 -- pulsed drift tube
 electrocombo[pulsed_tube_pa_num] = { [tube_pa_num] = 1 }
 
--- einzel lens
-electrocombo[lens_pa_num] = { [cylinder_middle_pa_num] = 1 }
+-- einzel lenses
+electrocombo[lens_pa_num] = {
+    [cylinder_middle_pa_num]     = 1;
+    [cylinder_middle_pa_num + 1] = 1;
+}
 
 -- vacuum pipe
 electrocombo[ground_pa_num] = {
-    [cylinder_outer_pa_num] = 1;
-    [pipe_pa_num]           = 1;
+    [cylinder_outer_pa_num]     = 1;
+    [cylinder_outer_pa_num + 1] = 1;
+    [pipe_pa_num]               = 1;
 }
 
 potential_array { scalable_electrodes = electrocombo }

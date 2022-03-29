@@ -36,18 +36,18 @@ local object = "einzel_lens"
 -- define the potential array number and dimensions of each component
 local var                   =   {}
 
-var.cylinder_inner_radius   =   15
+var.cylinder_inner_radius   =   13.5
 var.cylinder_thickness      =   2
 var.cylinder_blend          =   var.cylinder_thickness / 2
-var.cylinder_gap            =   var.cylinder_inner_radius / 2
+var.cylinder_gap            =   5
 
 var.cylinder_outer_pa_num   =   1
-var.cylinder_outer_length   =   var.cylinder_inner_radius
+var.cylinder_outer_length   =   10
 
-var.cylinder_middle_pa_num  =   var.cylinder_outer_pa_num + 1
-var.cylinder_middle_length  =   var.cylinder_inner_radius
+var.cylinder_middle_pa_num  =   var.cylinder_outer_pa_num + 2
+var.cylinder_middle_length  =   10
 
-var.tube_pa_num             =   var.cylinder_middle_pa_num + 1
+var.tube_pa_num             =   var.cylinder_middle_pa_num + 2
 var.tube_inner_radius       =   1
 var.tube_thickness          =   1
 var.tube_blend              =   var.tube_thickness / 2
@@ -56,9 +56,12 @@ var.tube_length             =   10
 var.pipe_pa_num             =   var.tube_pa_num + 1
 var.pipe_inner_radius       =   20
 var.pipe_thickness          =   2
-var.pipe_left_gap           =   var.cylinder_inner_radius
-var.pipe_right_gap          =   244 - var.pipe_left_gap - var.cylinder_outer_length * 2 - var.cylinder_gap * 2 - var.cylinder_middle_length
+var.pipe_length             =   477 + (var.tube_length - var.pipe_thickness) / 2
+var.pipe_left_gap           =   25
+var.pipe_right_gap          =   20
 var.pipe_extension          =   15
+
+var.iris_radius             =   1
 
 var.pulsed_tube_pa_num      =   1
 var.lens_pa_num             =   var.pulsed_tube_pa_num + 1
@@ -67,10 +70,9 @@ var.ground_pa_num           =   var.lens_pa_num + 1
 var.grid_size               =   5e-2
 
 -- calculate the range for cropping potential array; values are in grid units
-local lens_length = var.cylinder_gap * 2 + var.cylinder_outer_length * 2 + var.cylinder_middle_length
-local crop_axial_start  =   math.ceil(( var.pipe_extension + var.pipe_thickness )              / var.grid_size)
-local crop_axial_span   =   math.ceil(( lens_length + var.pipe_left_gap + var.pipe_right_gap ) / var.grid_size)
-local crop_radial_span  =   math.ceil(( var.cylinder_inner_radius + var.cylinder_thickness )   / var.grid_size)
+local crop_axial_start  =   math.ceil(( var.pipe_extension + var.pipe_thickness ) / var.grid_size)
+local crop_axial_span   =   math.ceil(( var.pipe_length + var.pipe_thickness )    / var.grid_size)
+local crop_radial_span  =   math.ceil(  var.pipe_inner_radius                     / var.grid_size)
 local crop_range        =   { crop_axial_start, 0, 0; crop_axial_span, crop_radial_span, 0 }
 
 -- calculate the corresponding workbench bounds
@@ -204,15 +206,15 @@ local emittance_ycoord  =   {}
 local emittance_yprime  =   {}
 local emittance_zcoord  =   {}
 local emittance_zprime  =   {}
-local radial_size       =   {}
-local axial_angle       =   {}
+-- local radial_size       =   {}
+-- local axial_angle       =   {}
 local time_of_flight    =   {}
 
 local function monitor_boundary()
     -- simion.mark()
-    local k = #radial_size + 1
-    radial_size[k]      =   math.sqrt(ion_py_mm^2 + ion_pz_mm^2)
-    axial_angle[k]      =   math.sqrt(ion_vy_mm^2 + ion_vz_mm^2) / ion_vx_mm * 1e3
+    local k = #time_of_flight + 1
+    -- radial_size[k]      =   math.sqrt(ion_py_mm^2 + ion_pz_mm^2)
+    -- axial_angle[k]      =   math.sqrt(ion_vy_mm^2 + ion_vz_mm^2) / ion_vx_mm * 1e3
     time_of_flight[k]   =   ion_time_of_flight
 end
 
@@ -268,16 +270,17 @@ end
 function segment.flym()
     generate_particles(particle_definition)
 
-    file_handler = io.open(("einzel_lens_parameters%s.txt"):format(file_id or ''), 'w')
-    file_handler:write("start point,outer length,middle length,gap,voltage,ion number,beam size,beam parallelity\n")
-    for plg = var.cylinder_inner_radius - 5, var.cylinder_inner_radius + 15, 5 do var.pipe_left_gap = plg
-        for col = var.cylinder_inner_radius - 5, var.cylinder_inner_radius + 15, 5 do var.cylinder_outer_length = col
-            for cml = var.cylinder_inner_radius - 5, var.cylinder_inner_radius + 15, 5 do var.cylinder_middle_length = cml
-                for cg = var.cylinder_inner_radius - 10, var.cylinder_inner_radius + 20, 5 do var.cylinder_gap = cg
-                    var.pipe_right_gap = 244 - var.pipe_left_gap - var.cylinder_outer_length * 2 - var.cylinder_gap * 2 - var.cylinder_middle_length
-                    generate_potential_array(object)
-                    for lv = 2, 2.6, .1 do lens_voltage = lv * 1e3
-                        run()
+    file_handler = io.open(("einzel_lens_full_parameters%s.txt"):format(file_id or ''), 'w')
+    file_handler:write("outer length,middle length,gap,left space,right space,voltage,ion number\n")
+    for col = 6, 14, 2 do var.cylinder_outer_length = col
+        for cml = 24, 32, 2 do var.cylinder_middle_length = cml
+            for cg = 4, 10, 2 do var.cylinder_gap = cg
+                for plg = 20, 28, 2 do var.pipe_left_gap = plg
+                    for prg = 14, 22, 2 do var.pipe_right_gap = prg
+                        generate_potential_array(object)
+                        for lv = 2.1, 2.6, .1 do lens_voltage = lv * 1e3
+                            run()
+                        end
                     end
                 end
             end
@@ -285,8 +288,7 @@ function segment.flym()
     end
     file_handler:close()
 
-    -- var.pipe_left_gap, var.cylinder_outer_length, var.cylinder_middle_length, var.cylinder_gap, lens_voltage = unpack {10, 10, 25, 5, 2500}
-    -- var.pipe_right_gap = 244 - var.pipe_left_gap - var.cylinder_outer_length * 2 - var.cylinder_gap * 2 - var.cylinder_middle_length
+    -- var.cylinder_outer_length, var.cylinder_middle_length, var.cylinder_gap, var.pipe_left_gap, var.pipe_right_gap, lens_voltage = unpack {10, 25, 5, 10, 10, 2500}
     -- generate_potential_array(object)
     -- run()
 end
@@ -314,17 +316,14 @@ function segment.other_actions()
 end
 
 function segment.terminate_run()
-    beam_size, beam_parallelity = Stat.array_mean(radial_size), Stat.array_mean(axial_angle)
-
     file_handler:write(table.concat({
-        var.pipe_left_gap, var.cylinder_outer_length, var.cylinder_middle_length, var.cylinder_gap, lens_voltage, #radial_size, beam_size, beam_parallelity}, ',')..'\n')
+        var.cylinder_outer_length, var.cylinder_middle_length, var.cylinder_gap, var.pipe_left_gap, var.pipe_right_gap, lens_voltage, #time_of_flight}, ',')..'\n')
     file_handler:flush()
 
-    -- print(table.concat({#radial_size, beam_size, beam_parallelity}, ','))
     -- print(table.concat({#time_of_flight, Stat.array_mean(time_of_flight), Stat.array_min(time_of_flight), Stat.array_max(time_of_flight)}, ','))
 
-    radial_size     =   {}
-    axial_angle     =   {}
+    -- radial_size     =   {}
+    -- axial_angle     =   {}
     time_of_flight  =   {}
 
     -- simion.print_screen()
