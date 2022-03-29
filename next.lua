@@ -42,10 +42,10 @@ var.cylinder_blend          =   var.cylinder_thickness / 2
 var.cylinder_gap            =   5
 
 var.cylinder_outer_pa_num   =   1
-var.cylinder_outer_length   =   10
+var.cylinder_outer_length   =   5
 
 var.cylinder_middle_pa_num  =   var.cylinder_outer_pa_num + 2
-var.cylinder_middle_length  =   10
+var.cylinder_middle_length  =   30
 
 var.tube_pa_num             =   var.cylinder_middle_pa_num + 2
 var.tube_inner_radius       =   1
@@ -57,15 +57,16 @@ var.pipe_pa_num             =   var.tube_pa_num + 1
 var.pipe_inner_radius       =   20
 var.pipe_thickness          =   2
 var.pipe_length             =   477 + (var.tube_length - var.pipe_thickness) / 2
-var.pipe_left_gap           =   25
-var.pipe_right_gap          =   20
+var.pipe_left_gap           =   20
+var.pipe_right_gap          =   15
 var.pipe_extension          =   15
 
 var.iris_radius             =   1
 
 var.pulsed_tube_pa_num      =   1
-var.lens_pa_num             =   var.pulsed_tube_pa_num + 1
-var.ground_pa_num           =   var.lens_pa_num + 1
+var.left_lens_pa_num        =   var.pulsed_tube_pa_num + 1
+var.right_lens_pa_num       =   var.left_lens_pa_num + 1
+var.ground_pa_num           =   var.right_lens_pa_num + 1
 
 var.grid_size               =   5e-2
 
@@ -183,8 +184,9 @@ local function generate_particles(obj, stride)
 end
 
 -- define the static potentials of electrodes
-local pulse_voltage =   2.5e3
-local lens_voltage  =   2e3
+local pulse_voltage         =   2.5e3
+local left_lens_voltage     =   2e3
+local right_lens_voltage    =   2e3
 
 -- register the fate of each ion
 local die_from  = {}
@@ -269,27 +271,18 @@ end
 
 function segment.flym()
     generate_particles(particle_definition)
+    generate_potential_array(object)
 
-    file_handler = io.open(("einzel_lens_full_parameters%s.txt"):format(file_id or ''), 'w')
-    file_handler:write("outer length,middle length,gap,left space,right space,voltage,ion number\n")
-    for col = 6, 14, 2 do var.cylinder_outer_length = col
-        for cml = 24, 32, 2 do var.cylinder_middle_length = cml
-            for cg = 4, 10, 2 do var.cylinder_gap = cg
-                for plg = 20, 28, 2 do var.pipe_left_gap = plg
-                    for prg = 14, 22, 2 do var.pipe_right_gap = prg
-                        generate_potential_array(object)
-                        for lv = 2.1, 2.6, .1 do lens_voltage = lv * 1e3
-                            run()
-                        end
-                    end
-                end
-            end
+    file_handler = io.open(("einzel_lens_voltages%s.txt"):format(file_id or ''), 'w')
+    file_handler:write("left lens voltage,right lens voltage,ion number\n")
+    for llv = 2000, 2300, 25 do left_lens_voltage = llv
+        for rlv = 2000, 2300, 25 do right_lens_voltage = rlv
+            run()
         end
     end
     file_handler:close()
 
-    -- var.cylinder_outer_length, var.cylinder_middle_length, var.cylinder_gap, var.pipe_left_gap, var.pipe_right_gap, lens_voltage = unpack {10, 25, 5, 10, 10, 2500}
-    -- generate_potential_array(object)
+    -- left_lens_voltage, right_lens_voltage = unpack {2150, 2175}
     -- run()
 end
 
@@ -302,7 +295,8 @@ end
 function segment.init_p_values()
     simion.wb.instances[1].pa:fast_adjust {
         [var.pulsed_tube_pa_num]    =   pulse_voltage;
-        [var.lens_pa_num]           =   lens_voltage;
+        [var.left_lens_pa_num]      =   left_lens_voltage;
+        [var.right_lens_pa_num]     =   right_lens_voltage;
         [var.ground_pa_num]         =   0;
     }
 end
@@ -316,8 +310,7 @@ function segment.other_actions()
 end
 
 function segment.terminate_run()
-    file_handler:write(table.concat({
-        var.cylinder_outer_length, var.cylinder_middle_length, var.cylinder_gap, var.pipe_left_gap, var.pipe_right_gap, lens_voltage, #time_of_flight}, ',')..'\n')
+    file_handler:write(table.concat({left_lens_voltage, right_lens_voltage, #time_of_flight}, ',')..'\n')
     file_handler:flush()
 
     -- print(table.concat({#time_of_flight, Stat.array_mean(time_of_flight), Stat.array_min(time_of_flight), Stat.array_max(time_of_flight)}, ','))

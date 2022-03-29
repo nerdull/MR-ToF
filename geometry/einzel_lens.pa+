@@ -13,7 +13,8 @@ local tube_pa_num               =   EL.tube_pa_num
 local pipe_pa_num               =   EL.pipe_pa_num
 
 local pulsed_tube_pa_num        =   EL.pulsed_tube_pa_num
-local lens_pa_num               =   EL.lens_pa_num
+local left_lens_pa_num          =   EL.left_lens_pa_num
+local right_lens_pa_num         =   EL.right_lens_pa_num
 local ground_pa_num             =   EL.ground_pa_num
 
 -- electrode mapping table
@@ -23,10 +24,8 @@ local electrocombo = {}
 electrocombo[pulsed_tube_pa_num] = { [tube_pa_num] = 1 }
 
 -- einzel lenses
-electrocombo[lens_pa_num] = {
-    [cylinder_middle_pa_num]     = 1;
-    [cylinder_middle_pa_num + 1] = 1;
-}
+electrocombo[left_lens_pa_num] = { [cylinder_middle_pa_num] = 1 }
+electrocombo[right_lens_pa_num] = { [cylinder_middle_pa_num + 1] = 1 }
 
 -- vacuum pipe
 electrocombo[ground_pa_num] = {
