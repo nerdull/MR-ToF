@@ -13,3 +13,6 @@ The development environment is **SIMION 8.1.2.30-TEST-2017-02-01**.
 
 ## License
 This repository is licensed under the **GNU GPLv3**.
+
+## Funding
+This research was funded by European Research Council Executive Agency (ERCEA), under the powers delegated by the European Commission through a Starting Grant number 803740—NEXT—ERC-2018-STG.
